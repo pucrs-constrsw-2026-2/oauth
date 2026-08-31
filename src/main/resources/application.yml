@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: oauth
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${keycloak.base-url}/realms/${keycloak.realm}
+
+keycloak:
+  base-url: ${KEYCLOAK_URL:http://localhost:8080}
+  realm: ${KEYCLOAK_REALM:constrsw}
+  client-id: ${KEYCLOAK_CLIENT_ID:oauth}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    br.pucrs.constrsw.oauth: DEBUG
