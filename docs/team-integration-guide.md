@@ -3,6 +3,7 @@
 **Projeto:** Microserviço de Autenticação e Autorização (OAuth 2.0 / OIDC com Keycloak)  
 **Disciplina:** Construção de Software (2026/2)  
 **Time:** Grupo 01  
+**Integrantes:** Fernando Gazzana, Luiz Agusto Kubaszewski, Giancarlo Mena, Vinicius Silva  
 **Branch Base do Grupo:** `grupo01` *(nossa "main")*  
 **Arquitetura:** Hexagonal (*Ports & Adapters*)  
 
