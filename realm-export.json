@@ -1,4 +1,4 @@
-﻿{
+{
     "id":  "fee113e0-7914-459e-82c5-a5470dd8b6c3",
     "realm":  "constr-sw-2026-2",
     "notBefore":  0,
@@ -947,18 +947,6 @@
                                                       "policyEnforcementMode":  "ENFORCING",
                                                       "resources":  [
                                                                         {
-                                                                            "name":  "Default Resource",
-                                                                            "type":  "urn:oauth:resources:default",
-                                                                            "ownerManagedAccess":  false,
-                                                                            "attributes":  {
-
-                                                                                           },
-                                                                            "_id":  "26543acd-4c6c-45d0-961a-885cd1b7b45b",
-                                                                            "uris":  [
-                                                                                         "/*"
-                                                                                     ]
-                                                                        },
-                                                                        {
                                                                             "name":  "classes",
                                                                             "ownerManagedAccess":  false,
                                                                             "displayName":  "",
@@ -1065,17 +1053,6 @@
                                                                     ],
                                                       "policies":  [
                                                                        {
-                                                                           "id":  "74093230-03b7-4f66-9f0f-d4d8888a9eb2",
-                                                                           "name":  "Default Policy",
-                                                                           "description":  "A policy that grants access only for users within this realm",
-                                                                           "type":  "js",
-                                                                           "logic":  "POSITIVE",
-                                                                           "decisionStrategy":  "AFFIRMATIVE",
-                                                                           "config":  {
-                                                                                          "code":  "// by default, grants any permission associated with this policy\n$evaluation.grant();\n"
-                                                                                      }
-                                                                       },
-                                                                       {
                                                                            "id":  "c0c7e057-f0d8-461d-b963-901e0fda4cb1",
                                                                            "name":  "administrator-policy",
                                                                            "description":  "",
@@ -1106,18 +1083,6 @@
                                                                            "decisionStrategy":  "UNANIMOUS",
                                                                            "config":  {
                                                                                           "roles":  "[{\"id\":\"oauth/professor\",\"required\":false}]"
-                                                                                      }
-                                                                       },
-                                                                       {
-                                                                           "id":  "9e917748-c220-41cc-bc50-977037465416",
-                                                                           "name":  "Default Permission",
-                                                                           "description":  "A permission that applies to the default resource type",
-                                                                           "type":  "resource",
-                                                                           "logic":  "POSITIVE",
-                                                                           "decisionStrategy":  "UNANIMOUS",
-                                                                           "config":  {
-                                                                                          "defaultResourceType":  "urn:oauth:resources:default",
-                                                                                          "applyPolicies":  "[\"Default Policy\"]"
                                                                                       }
                                                                        },
                                                                        {
