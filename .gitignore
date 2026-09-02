@@ -1,0 +1,35 @@
+###> symfony/framework-bundle ###
+/.env.local
+/.env.local.php
+/.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+###< symfony/framework-bundle ###
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# IDEs
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# PHP / Composer caches
+composer.phar
+.phpunit.cache
+.phpunit.result.cache
+.php-cs-fixer.cache
+
+# Logs
+*.log
+
+# AI Tooling & Internal BMAD engine (o output de documentação em _bmad-output/ É MANTIDO no git)
+.agents/
+.claude/
+_bmad/

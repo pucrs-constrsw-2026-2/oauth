@@ -1,0 +1,59 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 09-02-2026 15:33
+last_updated: 09-02-2026 15:45
+project: oauth
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-1: done
+  1-1-configuração-do-ambiente-docker-e-provisionamento-do-keycloa: done
+  1-2-estrutura-base-da-arquitetura-hexagonal-interfaces-de-portas: done
+  1-3-cliente-http-base-do-keycloak-e-interceptor-global-de-erros: done
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-autenticação-de-usuário-via-login-post-login: backlog
+  2-2-renovação-de-sessão-via-refresh-token-post-refresh: backlog
+  2-3-consulta-de-perfil-do-usuário-autenticado-get-me: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-cadastro-de-novos-usuários-post-users: backlog
+  3-2-listagem-de-usuários-ativos-e-busca-por-id-get-users-e-get-u: backlog
+  3-3-atualização-de-atributos-e-senha-de-usuário-put-users-id-e-p: backlog
+  3-4-exclusão-lógica-de-usuário-delete-users-id: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-validação-de-acesso-e-avaliação-de-políticas-por-recurso-pos: backlog
+  epic-4-retrospective: optional

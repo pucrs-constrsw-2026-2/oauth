@@ -1,0 +1,13 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\Port\Inbound;
+
+use App\Application\DTO\User\CreateUserDTO;
+use App\Application\DTO\User\UserDTO;
+
+interface CreateUserUseCaseInterface
+{
+    public function execute(CreateUserDTO $dto): UserDTO;
+}
