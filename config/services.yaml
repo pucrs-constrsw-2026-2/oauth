@@ -32,3 +32,11 @@ services:
     App\Infrastructure\Http\Listener\JsonExceptionListener:
         tags:
             - { name: kernel.event_listener, event: kernel.exception, method: onKernelException, priority: 10 }
+
+    # Inbound Ports (Use Cases) - Épico 2
+    App\Domain\Port\Inbound\LoginUseCaseInterface: '@App\Application\UseCase\Auth\LoginUseCase'
+    App\Domain\Port\Inbound\RefreshTokenUseCaseInterface: '@App\Application\UseCase\Auth\RefreshTokenUseCase'
+    App\Domain\Port\Inbound\GetUserInfoUseCaseInterface: '@App\Application\UseCase\Auth\GetUserInfoUseCase'
+
+    # Outbound Ports (Adapters) - Épico 2
+    App\Domain\Port\Outbound\KeycloakAuthPortInterface: '@App\Infrastructure\Keycloak\Adapter\KeycloakAuthAdapter'

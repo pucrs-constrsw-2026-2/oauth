@@ -34,3 +34,8 @@ composer.phar
 .agents/
 .claude/
 _bmad/
+
+###> phpunit/phpunit ###
+/phpunit.xml
+/.phpunit.cache/
+###< phpunit/phpunit ###
