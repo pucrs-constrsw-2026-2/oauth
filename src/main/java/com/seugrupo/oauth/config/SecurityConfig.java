@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
-import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
@@ -29,8 +29,21 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/login",
                                 "/refresh-token",
+                                // Swagger UI: springdoc.swagger-ui.path = /docs.
+                                // O /docs apenas redireciona para /swagger-ui/index.html,
+                                // entao ambos precisam estar liberados.
+                                "/docs",
+                                "/docs/**",
+                                "/swagger-ui",
                                 "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/swagger-resources",
+                                "/swagger-resources/**",
+                                "/webjars/**",
+                                // JSON/YAML do OpenAPI consumido pela propria UI
+                                "/v3/api-docs",
                                 "/v3/api-docs/**",
+                                "/v3/api-docs.yaml",
                                 "/actuator/health"
                         ).permitAll()
                         .anyRequest().authenticated()
