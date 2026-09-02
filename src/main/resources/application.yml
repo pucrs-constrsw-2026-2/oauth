@@ -1,0 +1,12 @@
+server:
+  port: ${PORT:8081}
+
+keycloak:
+  url: ${KEYCLOAK_URL:http://localhost:8080/auth}
+  realm: ${KEYCLOAK_REALM:constr-sw-2026-2}
+  client-id: ${KEYCLOAK_CLIENT_ID:oauth}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:o1nlFjJcpqhSL34dzQ0avGyDrkZZ1J58}
+
+logging:
+  level:
+    br.pucrs.constrsw: DEBUG
