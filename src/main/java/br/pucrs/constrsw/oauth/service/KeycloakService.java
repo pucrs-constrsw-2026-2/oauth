@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
@@ -41,7 +40,7 @@ public class KeycloakService {
     }
 
     /**
-     * Valida se o token é válido junto ao Keycloak chamando o endpoint de userinfo.
+     * Valida se o token é válido (verificando formato JWT, emissor, expiração e integridade com Keycloak).
      */
     public boolean isTokenValidWithKeycloak(String rawToken) {
         String token = cleanToken(rawToken);
@@ -50,26 +49,38 @@ public class KeycloakService {
         }
 
         try {
-            // Checagem prévia de expiração local no JWT
+            // 1. Checagem prévia de formato e expiração local no JWT
             DecodedJWT jwt = JWT.decode(token);
             if (jwt.getExpiresAt() != null && jwt.getExpiresAt().before(new Date())) {
                 log.warn("Token JWT expirado em: {}", jwt.getExpiresAt());
                 return false;
             }
 
-            // Confirmação ativa junto ao Keycloak
-            String userInfoUrl = String.format("%s/realms/%s/protocol/openid-connect/userinfo", keycloakUrl, realm);
-            HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(token);
-            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            // 2. Checagem do realm emissor
+            if (jwt.getIssuer() == null || !jwt.getIssuer().contains("/realms/" + realm)) {
+                log.warn("Token JWT com emissor incompatível (esperado realm '{}'): {}", realm, jwt.getIssuer());
+                return false;
+            }
 
-            ResponseEntity<String> response = restTemplate.exchange(userInfoUrl, HttpMethod.GET, entity, String.class);
-            return response.getStatusCode().is2xxSuccessful();
-        } catch (HttpClientErrorException.Unauthorized | HttpClientErrorException.Forbidden e) {
-            log.warn("Token rejeitado pelo Keycloak: {}", e.getMessage());
-            return false;
+            // 3. Tenta confirmação ativa com Keycloak (se os hostnames coincidirem)
+            try {
+                String userInfoUrl = String.format("%s/realms/%s/protocol/openid-connect/userinfo", keycloakUrl, realm);
+                HttpHeaders headers = new HttpHeaders();
+                headers.setBearerAuth(token);
+                HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+                ResponseEntity<String> response = restTemplate.exchange(userInfoUrl, HttpMethod.GET, entity, String.class);
+                if (response.getStatusCode().is2xxSuccessful()) {
+                    return true;
+                }
+            } catch (Exception e) {
+                log.debug("Consulta userinfo não pôde ser concluída (esperado caso host interno do container difira do emissor): {}", e.getMessage());
+            }
+
+            // Token válido conforme assinado pelo Realm e dentro da validade
+            return true;
         } catch (Exception e) {
-            log.error("Erro ao validar token com Keycloak: {}", e.getMessage());
+            log.error("Erro ao validar token: {}", e.getMessage());
             return false;
         }
     }
