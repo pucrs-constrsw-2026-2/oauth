@@ -63,11 +63,13 @@ class KeycloakHttpClient
 
         $response = $this->httpClient->request(strtoupper($method), $url, $options);
         $statusCode = $response->getStatusCode();
+        $headers = $response->getHeaders(false);
         $raw = $response->getContent(false);
         $data = json_decode($raw, true);
 
         return [
             'status' => $statusCode,
+            'headers' => $headers,
             'data' => is_array($data) ? $data : [],
             'raw' => $raw,
         ];
