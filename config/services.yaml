@@ -40,3 +40,15 @@ services:
 
     # Outbound Ports (Adapters) - Épico 2
     App\Domain\Port\Outbound\KeycloakAuthPortInterface: '@App\Infrastructure\Keycloak\Adapter\KeycloakAuthAdapter'
+
+    # Inbound Ports (Use Cases) - Épico 3
+    App\Domain\Port\Inbound\CreateUserUseCaseInterface: '@App\Application\UseCase\User\CreateUserUseCase'
+    App\Domain\Port\Inbound\ListUsersUseCaseInterface: '@App\Application\UseCase\User\ListUsersUseCase'
+    App\Domain\Port\Inbound\GetUserByIdUseCaseInterface: '@App\Application\UseCase\User\GetUserByIdUseCase'
+    App\Domain\Port\Inbound\UpdateUserUseCaseInterface: '@App\Application\UseCase\User\UpdateUserUseCase'
+    App\Domain\Port\Inbound\UpdatePasswordUseCaseInterface: '@App\Application\UseCase\User\UpdatePasswordUseCase'
+    App\Domain\Port\Inbound\DisableUserUseCaseInterface: '@App\Application\UseCase\User\DisableUserUseCase'
+
+    # Outbound Ports (Adapters) - Épico 3
+    App\Domain\Port\Outbound\KeycloakUserPortInterface: '@App\Infrastructure\Keycloak\Adapter\KeycloakUserAdapter'
+

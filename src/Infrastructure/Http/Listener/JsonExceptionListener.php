@@ -40,7 +40,8 @@ class JsonExceptionListener
             $code = 'HTTP_' . $statusCode;
             $message = $exception->getMessage();
         } else {
-            if (($_ENV['APP_DEBUG'] ?? getenv('APP_DEBUG')) === 'true') {
+            $debug = filter_var($_ENV['APP_DEBUG'] ?? getenv('APP_DEBUG') ?? false, FILTER_VALIDATE_BOOLEAN);
+            if ($debug) {
                 $message = $exception->getMessage();
                 $details = [
                     'file' => $exception->getFile(),

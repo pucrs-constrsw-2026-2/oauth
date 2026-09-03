@@ -236,6 +236,20 @@
   ],
   "users": [
     {
+      "id": "service-account-oauth-id",
+      "username": "service-account-oauth",
+      "enabled": true,
+      "emailVerified": false,
+      "serviceAccountClientId": "oauth",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users"
+        ]
+      }
+    },
+    {
       "id": "user-admin-seed-id",
       "username": "admin@constrsw.pucrs.br",
       "email": "admin@constrsw.pucrs.br",
