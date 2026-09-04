@@ -23,6 +23,8 @@ public record ErrorResponse(
         String errorCode,
         String errorDescription,
         String errorSource,
-        List<String> errorStack
+        List<ErrorStackEntry> errorStack
 ) {
+    public record ErrorStackEntry(String message) {
+    }
 }
