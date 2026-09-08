@@ -1,0 +1,22 @@
+{
+  "realm": "closed-cras",
+  "enabled": true,
+  "clients": [{
+    "clientId": "bff",
+    "name": "Closed CRAS OAuth gateway",
+    "enabled": true,
+    "clientAuthenticatorType": "client-secret",
+    "secret": "local-development-secret",
+    "publicClient": false,
+    "directAccessGrantsEnabled": true,
+    "standardFlowEnabled": false,
+    "serviceAccountsEnabled": false,
+    "protocol": "openid-connect"
+  }],
+  "users": [{
+    "username": "demo@pucrs.br",
+    "email": "demo@pucrs.br",
+    "enabled": true,
+    "credentials": [{"type": "password", "value": "demo", "temporary": false}]
+  }]
+}
