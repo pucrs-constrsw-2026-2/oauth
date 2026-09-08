@@ -1,11 +1,11 @@
 server:
-  port: ${PORT:8081}
+  port: ${OAUTH_INTERNAL_API_PORT:8081}
 
 keycloak:
-  url: ${KEYCLOAK_URL:http://localhost:8080/auth}
-  realm: ${KEYCLOAK_REALM:constr-sw-2026-2}
+  url: ${KEYCLOAK_SERVER_URL:http://localhost:8080}
+  realm: ${KEYCLOAK_REALM:constrsw}
   client-id: ${KEYCLOAK_CLIENT_ID:oauth}
-  client-secret: ${KEYCLOAK_CLIENT_SECRET:o1nlFjJcpqhSL34dzQ0avGyDrkZZ1J58}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:wsNXUxaupU9X6jCncsn3rOEy6PDt7oJO}
 
 logging:
   level:

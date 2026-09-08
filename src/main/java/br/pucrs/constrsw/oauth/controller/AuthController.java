@@ -3,11 +3,6 @@ package br.pucrs.constrsw.oauth.controller;
 import br.pucrs.constrsw.oauth.dto.ValidateRequest;
 import br.pucrs.constrsw.oauth.dto.ValidateResponse;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,7 +14,6 @@ import java.util.List;
 @RestController
 @RequestMapping
 @CrossOrigin(origins = "*")
-@Tag(name = "Authorization", description = "Endpoints para validação de access token e permissões de acesso a recursos")
 public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
@@ -30,33 +24,21 @@ public class AuthController {
         this.keycloakService = keycloakService;
     }
 
-    @Operation(summary = "Valida access token e permissão a recurso via POST",
-               description = "Valida o access token JWT junto ao Keycloak e verifica se o role do usuário permite acesso ao recurso informado no corpo da requisição.")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Acesso permitido ao recurso"),
-            @ApiResponse(responseCode = "403", description = "Acesso proibido ou token inválido/expirado")
-    })
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return ResponseEntity.ok("UP");
+    }
     @PostMapping(value = {"/validate", "/authorize"})
     public ResponseEntity<ValidateResponse> validateAccessPost(
-            @Parameter(description = "Header com o access token Bearer", required = false)
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody(required = false) ValidateRequest request) {
 
         String resource = (request != null) ? request.getResource() : null;
         return executeValidation(authHeader, resource);
     }
-
-    @Operation(summary = "Valida access token e permissão a recurso via GET",
-               description = "Valida o access token JWT junto ao Keycloak e verifica se o role do usuário permite acesso ao recurso informado via query parameter.")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Acesso permitido ao recurso"),
-            @ApiResponse(responseCode = "403", description = "Acesso proibido ou token inválido/expirado")
-    })
     @GetMapping(value = {"/validate", "/authorize"})
     public ResponseEntity<ValidateResponse> validateAccessGet(
-            @Parameter(description = "Header com o access token Bearer", required = false)
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @Parameter(description = "Nome do recurso (ex: lessons, rooms, courses)", required = false)
             @RequestParam(value = "resource", required = false) String resource) {
 
         return executeValidation(authHeader, resource);
@@ -100,3 +82,4 @@ public class AuthController {
         }
     }
 }
+
