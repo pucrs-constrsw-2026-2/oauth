@@ -147,6 +147,44 @@ The guard throws the standard Nest exceptions. Once the uniform error envelope
 `{ error_code, error_description, error_source, error_stack }` with no change
 required here.
 
+## Error format (uniform envelope)
+
+Every error response — from every module — uses the same JSON body:
+
+```json
+{
+  "error_code": "OA-400",
+  "error_description": "username is required",
+  "error_source": "OAuthAPI",
+  "error_stack": [{ "field": "username", "reason": "missing" }]
+}
+```
+
+| Field | Rule |
+| --- | --- |
+| `error_code` | Relays Keycloak's `error` field when the failure came from a Keycloak call; otherwise a local `OA-xxx` code (below) |
+| `error_description` | Group-provided human message |
+| `error_source` | Always `OAuthAPI` |
+| `error_stack` | **Array of objects**, chaining causes down to the root cause — never a string or an array of strings |
+
+### Local `OA-xxx` code family
+
+Used when the failure is local (bad structure, missing/invalid auth) and Keycloak was not called or returned no code. Epics 4-6 **must reuse this table** — do not invent a new prefix (`ERR_USER_*`, etc.):
+
+| Code | HTTP status | Meaning |
+| --- | --- | --- |
+| `OA-400` | 400 | Bad request structure / validation failure |
+| `OA-401` | 401 | Missing or invalid authentication (local, no Keycloak code to relay) |
+| `OA-403` | 403 | Forbidden (local) |
+| `OA-404` | 404 | Entity not found |
+| `OA-409` | 409 | Conflict (e.g. duplicate username) |
+| `OA-500` | 500 | Unexpected internal error |
+
+### How it's wired
+
+- `src/errors/oa-error.mapper.ts` — `OaException` + `OaErrorMapper` factory (`badRequest`, `unauthorized`, `forbidden`, `notFound`, `conflict`, `fromKeycloak`). Route/service code throws these instead of building JSON by hand.
+- `src/errors/oa-exception.filter.ts` — global Nest exception filter (`app.useGlobalFilters` in `main.ts`). Formats **any** thrown value — `OaException`, a standard Nest `HttpException`, or an unexpected error — into the envelope above. No route can fall back to Nest's default `{ statusCode, message }` body.
+
 ## Running locally
 
 Dependencies:

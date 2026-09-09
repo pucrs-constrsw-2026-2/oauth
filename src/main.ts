@@ -3,10 +3,13 @@ import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module';
 import { KeycloakSettingsService } from './config';
+import { OaExceptionFilter } from './errors';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const settings = app.get(KeycloakSettingsService);
+
+  app.useGlobalFilters(new OaExceptionFilter());
 
   await app.listen(settings.internalApiPort);
 
