@@ -13,7 +13,10 @@ RUN mvn -q -B package -DskipTests
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
+# curl is needed for the container healthcheck (docker-compose.yml); not present in this base image.
+RUN apk add --no-cache curl
+
 COPY --from=build /app/target/oauth.jar app.jar
 
-EXPOSE 8080
+EXPOSE 3001
 ENTRYPOINT ["java", "-jar", "app.jar"]

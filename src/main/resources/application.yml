@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${OAUTH_INTERNAL_API_PORT:8080}
 
 spring:
   application:
@@ -11,16 +11,27 @@ spring:
           issuer-uri: ${keycloak.base-url}/realms/${keycloak.realm}
 
 keycloak:
-  base-url: ${KEYCLOAK_URL:http://localhost:8080}
+  base-url: ${KEYCLOAK_SERVER_URL:http://localhost:8080}
   realm: ${KEYCLOAK_REALM:constrsw}
   client-id: ${KEYCLOAK_CLIENT_ID:oauth}
   client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+  admin-username: ${KEYCLOAK_ADMIN:admin}
+  admin-password: ${KEYCLOAK_ADMIN_PASSWORD:}
 
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
   api-docs:
     path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 logging:
   level:

@@ -17,6 +17,15 @@ Escopo entregue nesta etapa (responsável: configuração + login):
   `access_token`, `expires_in`, `refresh_token`, `refresh_expires_in`.
 - Autenticação Bearer: todas as demais rotas exigem `Authorization: Bearer <token>`,
   validado como JWT do Keycloak (`spring-boot-starter-oauth2-resource-server`).
+- Chamadas administrativas ao Keycloak (para Users/Roles): a service account do client
+  `oauth` **não** tem permissão (`manage-users`/`manage-realm`) no realm `constrsw` (ver
+  `keycloak/realm-export.json`). Por isso foi criado `KeycloakAdminService`, que
+  autentica como o admin bootstrap do Keycloak (`KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`,
+  já injetados no container pelo `docker-compose.yml`) contra o client `admin-cli` do
+  realm `master`, cacheia o token e expõe:
+  - `adminApiBaseUrl()` → `{KEYCLOAK_SERVER_URL}/admin/realms/{KEYCLOAK_REALM}`
+  - `adminAuthHeaders()` → headers prontos (`Authorization: Bearer <admin-token>` +
+    `Content-Type: application/json`) para chamar a Admin REST API do Keycloak.
 - Tratamento de erros geral: todo erro da API (validação, token ausente/inválido,
   falha ao chamar o Keycloak, exceção não tratada) responde no envelope padrão:
 
@@ -29,11 +38,20 @@ Escopo entregue nesta etapa (responsável: configuração + login):
   }
   ```
 
+  Lance `OAuthApiException` (tem factories `badRequest`/`unauthorized`/`forbidden`) a
+  partir de qualquer controller/service novo para cair automaticamente no
+  `GlobalExceptionHandler` e manter esse contrato.
+
 Pendente (outras pessoas do grupo, ver README da raiz do repo `base`):
 
 - `POST/GET/PUT/PATCH/DELETE /users` (Matheus)
 - `POST/GET/PUT/PATCH/DELETE /roles` + atribuição de role a usuário (Guilherme)
 - Swagger completo, collection Postman, testes, tag e `.zip` de entrega (Lucas)
+
+Para as duas primeiras: siga o padrão já existente (`controller` fino → `service` que
+fala com o Keycloak → `dto`s dedicados), reaproveitando `KeycloakAdminService` para as
+chamadas à Admin REST API. O regex de validação de e-mail do enunciado (`POST /users`)
+ainda não foi implementado.
 
 ## Rodando só este serviço (fora do compose da raiz)
 
@@ -41,11 +59,14 @@ Pendente (outras pessoas do grupo, ver README da raiz do repo `base`):
 mvn spring-boot:run
 # ou
 docker build -t oauth .
-docker run -p 8080:8080 \
-  -e KEYCLOAK_URL=http://host.docker.internal:8080 \
+docker run -p 3001:3001 \
+  -e OAUTH_INTERNAL_API_PORT=3001 \
+  -e KEYCLOAK_SERVER_URL=http://host.docker.internal:8080 \
   -e KEYCLOAK_REALM=constrsw \
   -e KEYCLOAK_CLIENT_ID=oauth \
   -e KEYCLOAK_CLIENT_SECRET=<secret> \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=<senha do admin do keycloak> \
   oauth
 ```
 
@@ -56,10 +77,13 @@ Normalmente, porém, este serviço é subido junto com o Keycloak pelo
 
 | Variável | Descrição | Default |
 | --- | --- | --- |
-| `KEYCLOAK_URL` | URL interna do Keycloak (nome do serviço no Docker network) | `http://localhost:8080` |
+| `OAUTH_INTERNAL_API_PORT` | Porta em que o Spring Boot escuta dentro do container | `8080` |
+| `KEYCLOAK_SERVER_URL` | URL interna do Keycloak (nome do serviço no Docker network) | `http://localhost:8080` |
 | `KEYCLOAK_REALM` | Realm usado pela aplicação | `constrsw` |
 | `KEYCLOAK_CLIENT_ID` | Client confidencial cadastrado no realm | `oauth` |
 | `KEYCLOAK_CLIENT_SECRET` | Secret do client `oauth` | *(obrigatório)* |
+| `KEYCLOAK_ADMIN` | Usuário admin bootstrap do Keycloak (realm `master`) | `admin` |
+| `KEYCLOAK_ADMIN_PASSWORD` | Senha do admin bootstrap do Keycloak | *(obrigatório)* |
 
 ## Estrutura de pacotes
 
@@ -71,10 +95,12 @@ src/main/java/br/pucrs/constrsw/oauth/
   dto/              # LoginResponse, ErrorResponse
   exception/        # OAuthApiException, GlobalExceptionHandler (@RestControllerAdvice)
   security/         # CustomAuthenticationEntryPoint (401), CustomAccessDeniedHandler (403)
-  service/          # KeycloakAuthService (chama o token endpoint do Keycloak)
+  service/          # KeycloakAuthService (POST /login), KeycloakAdminService (token de admin
+                     # para chamadas à Admin REST API, reaproveitável por Users/Roles)
 ```
 
 ## Documentação Swagger
 
-Com o serviço no ar: `http://localhost:9000/swagger-ui.html`
-(porta conforme mapeada no `docker-compose.yml` da raiz).
+Com o serviço no ar: `http://localhost:8181/swagger-ui.html`
+(porta `OAUTH_EXTERNAL_API_PORT` conforme o `.env` da raiz).
+Healthcheck do container: `http://localhost:8181/actuator/health`.
