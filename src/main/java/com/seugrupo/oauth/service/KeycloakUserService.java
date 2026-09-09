@@ -96,6 +96,46 @@ public class KeycloakUserService {
                 .block());
     }
 
+    public void update(String authorization, String id, UpdateUserRequest request) {
+        put(authorization, properties.getAdminUsersUrl() + "/{id}", id, Map.of(
+                "username", request.username(),
+                "email", request.username(),
+                "firstName", request.firstName(),
+                "lastName", request.lastName(),
+                "enabled", request.enabled()));
+    }
+
+    public void updatePassword(String authorization, String id, UpdatePasswordRequest request) {
+        put(authorization, properties.getAdminUsersUrl() + "/{id}/reset-password", id, Map.of(
+                "type", "password",
+                "value", request.password(),
+                "temporary", false));
+    }
+
+    public void disable(String authorization, String id) {
+        put(authorization, properties.getAdminUsersUrl() + "/{id}", id, Map.of("enabled", false));
+    }
+
+    private void put(
+            String authorization,
+            String uriTemplate,
+            String id,
+            Map<String, Object> body
+    ) {
+        execute(() -> {
+            keycloakWebClient.put()
+                    .uri(uriTemplate, id)
+                    .header(HttpHeaders.AUTHORIZATION, authorization)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .timeout(REQUEST_TIMEOUT)
+                    .block();
+            return null;
+        });
+    }
+
     private <T> T execute(Supplier<T> request) {
         try {
             return request.get();

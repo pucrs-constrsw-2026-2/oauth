@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seugrupo.oauth.config.KeycloakProperties;
 import com.seugrupo.oauth.dto.CreateUserRequest;
+import com.seugrupo.oauth.dto.UpdatePasswordRequest;
+import com.seugrupo.oauth.dto.UpdateUserRequest;
 import com.seugrupo.oauth.dto.UserResponse;
 import com.seugrupo.oauth.exception.OAuthApiException;
 import com.sun.net.httpserver.HttpExchange;
@@ -11,6 +13,9 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -25,7 +30,9 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -179,6 +186,76 @@ class KeycloakUserServiceTest {
                     assertThat(ex.getErrorCode()).isEqualTo("OA-502");
                     assertThat(ex.getErrorSource()).isEqualTo("OAuthAPI.Users");
                 });
+    }
+
+    @Test
+    void updateUsaPutSemEnviarPassword() {
+        service.update("Bearer access", "user-123",
+                new UpdateUserRequest("ana@example.com", "Ana", "Souza", true));
+
+        CapturedRequest request = capturedRequest.get();
+        assertThat(request.method()).isEqualTo("PUT");
+        assertThat(request.path()).isEqualTo("/admin/realms/constrsw/users/user-123");
+        assertThat(request.authorization()).isEqualTo("Bearer access");
+        assertThat(request.rawBody()).contains("\"firstName\":\"Ana\"")
+                .contains("\"lastName\":\"Souza\"")
+                .doesNotContain("password", "credentials");
+    }
+
+    @Test
+    void updatePasswordUsaResetPassword() {
+        service.updatePassword("Bearer access", "user-123",
+                new UpdatePasswordRequest("nova"));
+
+        CapturedRequest request = capturedRequest.get();
+        assertThat(request.method()).isEqualTo("PUT");
+        assertThat(request.path()).isEqualTo(
+                "/admin/realms/constrsw/users/user-123/reset-password");
+        assertThat(request.rawBody()).contains("\"type\":\"password\"")
+                .contains("\"value\":\"nova\"")
+                .contains("\"temporary\":false");
+    }
+
+    @Test
+    void disableFazUpdateLogicoENaoDelete() {
+        service.disable("Bearer access", "user-123");
+
+        CapturedRequest request = capturedRequest.get();
+        assertThat(request.method()).isEqualTo("PUT");
+        assertThat(request.path()).isEqualTo("/admin/realms/constrsw/users/user-123");
+        assertThat(request.json()).containsOnly(Map.entry("enabled", false));
+    }
+
+    @ParameterizedTest(name = "{1} mapeia erro {0}")
+    @MethodSource("mutationFailures")
+    void mutacoesMapeiamErrosDoKeycloak(
+            int status,
+            String operation,
+            Consumer<KeycloakUserService> mutation
+    ) {
+        responseStatus = status;
+
+        assertThatThrownBy(() -> mutation.accept(service))
+                .isInstanceOfSatisfying(OAuthApiException.class, ex -> {
+                    assertThat(ex.getStatus().value()).isEqualTo(status);
+                    assertThat(ex.getErrorCode()).isEqualTo("OA-" + status);
+                    assertThat(ex.getErrorSource()).isEqualTo("OAuthAPI.Users");
+                    assertThat(ex.getMessage()).doesNotContain("internal", "not found");
+                });
+    }
+
+    private static Stream<Arguments> mutationFailures() {
+        return Stream.of(403, 404)
+                .flatMap(status -> Stream.of(
+                        Arguments.of(status, "update", (Consumer<KeycloakUserService>) service ->
+                                service.update("Bearer access", "user-123",
+                                        new UpdateUserRequest("ana@example.com", "Ana", "Silva", true))),
+                        Arguments.of(status, "updatePassword", (Consumer<KeycloakUserService>) service ->
+                                service.updatePassword("Bearer access", "user-123",
+                                        new UpdatePasswordRequest("nova"))),
+                        Arguments.of(status, "disable", (Consumer<KeycloakUserService>) service ->
+                                service.disable("Bearer access", "user-123"))
+                ));
     }
 
     private void handleRequest(HttpExchange exchange) throws IOException {
