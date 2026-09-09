@@ -1,4 +1,6 @@
 parameters:
+    env(KEYCLOAK_SERVER_URL): 'http://keycloak:8080'
+    env(KEYCLOAK_INTERNAL_URL): '%env(KEYCLOAK_SERVER_URL)%'
     keycloak.base_url: '%env(KEYCLOAK_INTERNAL_URL)%'
     keycloak.realm: '%env(KEYCLOAK_REALM)%'
     keycloak.client_id: '%env(KEYCLOAK_CLIENT_ID)%'
