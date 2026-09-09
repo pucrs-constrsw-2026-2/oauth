@@ -270,6 +270,33 @@ canonical **active** role names above, never an inactive/soft-deleted form.
 for `oauth` in the running Admin Console (`:8081`) after the volume import,
 since a stale `constrsw-keycloak-data` volume would not pick up JSON changes.
 
+### Story 6.2 — authorization resources
+
+`authorizationServicesEnabled: true` on client `oauth`, confirmed in
+`constrsw.json`. The eight named resources, each with its URL, are present:
+
+| Resource | URL |
+| --- | --- |
+| `classes` | `/classes` |
+| `courses` | `/courses` |
+| `lessons` | `/lessons` |
+| `professors` | `/professors` |
+| `reservations` | `/reservations` |
+| `resources` | `/resources` |
+| `rooms` | `/rooms` |
+| `students` | `/students` |
+
+No gap to fill. The import also defines a `Default Resource` (`/*`) — that is
+Keycloak's own catch-all, not one of the eight B.2 resources; it is left as-is
+and ignored by this list.
+
+These URLs exist only to identify the resource inside Keycloak Authorization
+Services — this SPEC does **not** implement `classes`/`courses`/etc. as real
+HTTP routes or domain services (NFR11).
+
+**Still pending:** same live-console caveat as 6.1 — confirm Authorization →
+Resources on client `oauth` lists these eight after the actual volume import.
+
 ## Running locally
 
 Dependencies:
