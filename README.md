@@ -353,6 +353,54 @@ specifies. This matrix is the **test oracle** for Story 6.5.
 Permissions on client `oauth` shows these effective bindings (not just the
 raw JSON shape) after the actual volume import.
 
+### Story 6.5 — `POST /authz/validate`
+
+Asks whether the caller's token grants access to one named resource. **Decided
+by Keycloak Authorization Services, not by this API** — there is no local
+role→resource table anywhere in `src/authz/`.
+
+- **Header**: `Authorization: Bearer <access_token>` (checked by the same
+  `BearerAuthGuard` used elsewhere — see 401/503 rules above).
+- **Body**: JSON `{ "resource": "<name>" }`, `<name>` one of the eight
+  resources from Story 6.2.
+- **How it decides**: the route calls the Keycloak token endpoint again, this
+  time with `grant_type=urn:ietf:params:oauth:grant-type:uma-ticket`,
+  `audience=oauth`, `permission=<resource>`, and the **caller's** access token
+  as the `Authorization` header (not the service's client credentials). A
+  `200` from Keycloak means permitted; a `403` means denied. Any other status
+  is treated as a failure to evaluate, not as an allow/deny answer.
+- **Responses**:
+
+  | Status | Meaning |
+  | --- | --- |
+  | `200` | Keycloak permits access (empty body) |
+  | `403` | Keycloak denies access (OA envelope) |
+  | `401` | Missing/invalid token (OA envelope, from `BearerAuthGuard`) |
+  | `400` | Malformed body / unknown resource name (OA envelope, local `OA-400`) |
+
+- **Expected outcomes** — the realm-derived matrix in `keycloak-authz.md`
+  (Stories 6.1-6.4), reproduced here as the test oracle:
+
+  | Role | Allowed resources |
+  | --- | --- |
+  | `administrator` | all eight |
+  | `coordinator` | `courses`, `classes`, `lessons`, `reservations` |
+  | `professor` | `lessons`, `reservations` |
+  | `student` | none |
+
+  This is **hierarchical** (`administrator` ⊇ `coordinator` ⊇ `professor`) by
+  the realm's own multi-policy configuration (Story 6.4) — it is **not** the
+  Moodle brief's disjoint table, which this group is not using as the oracle
+  (2026-09-09 decision).
+
+**Live verification pending:** unit tests mock the Keycloak permission check
+and confirm the route's plumbing reaches the right decision for every
+role→resource pair above (`src/authz/authz-matrix.spec.ts`), proving no local
+matrix exists. Running these assertions against the actual professor Keycloak
+stack (login as each of the four test users, then call `/authz/validate`) was
+not possible in this environment — Docker is not installed here — and is the
+one remaining step before closing 6.5 end-to-end.
+
 ## Running locally
 
 Dependencies:
