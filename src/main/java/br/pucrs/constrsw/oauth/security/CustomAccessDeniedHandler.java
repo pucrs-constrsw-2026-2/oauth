@@ -1,6 +1,7 @@
 package br.pucrs.constrsw.oauth.security;
 
 import br.pucrs.constrsw.oauth.dto.ErrorResponse;
+import br.pucrs.constrsw.oauth.dto.ErrorStackEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,7 +34,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
                 "403",
                 "Access token nao concede permissao para acessar esse endpoint ou objeto.",
                 "OAuthAPI",
-                List.of(accessDeniedException.toString()));
+                List.of(new ErrorStackEntry(accessDeniedException.getClass().getSimpleName(), accessDeniedException.getMessage())));
         objectMapper.writeValue(response.getOutputStream(), body);
     }
 }

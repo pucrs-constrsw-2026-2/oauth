@@ -1,6 +1,7 @@
 package br.pucrs.constrsw.oauth.exception;
 
 import br.pucrs.constrsw.oauth.dto.ErrorResponse;
+import br.pucrs.constrsw.oauth.dto.ErrorStackEntry;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -37,34 +38,39 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({MethodArgumentNotValidException.class})
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
-        List<String> details = ex.getBindingResult().getFieldErrors().stream()
-                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+        List<ErrorStackEntry> details = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> new ErrorStackEntry(fe.getField(), fe.getDefaultMessage()))
                 .collect(Collectors.toList());
         return build(HttpStatus.BAD_REQUEST, "Erro na estrutura do request body.", details);
     }
 
     @ExceptionHandler({MissingServletRequestParameterException.class, MissingServletRequestPartException.class})
     public ResponseEntity<ErrorResponse> handleMissingParam(Exception ex) {
-        return build(HttpStatus.BAD_REQUEST, "Parametro obrigatorio ausente: " + ex.getMessage(), List.of(ex.toString()));
+        return build(HttpStatus.BAD_REQUEST, "Parametro obrigatorio ausente: " + ex.getMessage(),
+                List.of(new ErrorStackEntry(ex.getClass().getSimpleName(), ex.getMessage())));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
-        return build(HttpStatus.BAD_REQUEST, "Corpo da requisicao ausente ou malformado.", List.of(ex.getMostSpecificCause().toString()));
+        Throwable cause = ex.getMostSpecificCause();
+        return build(HttpStatus.BAD_REQUEST, "Corpo da requisicao ausente ou malformado.",
+                List.of(new ErrorStackEntry(cause.getClass().getSimpleName(), cause.getMessage())));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
-        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), List.of(ex.toString()));
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(),
+                List.of(new ErrorStackEntry(ex.getClass().getSimpleName(), ex.getMessage())));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
         log.error("Unhandled exception", ex);
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno inesperado na OAuth API.", List.of(ex.toString()));
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno inesperado na OAuth API.",
+                List.of(new ErrorStackEntry(ex.getClass().getSimpleName(), ex.getMessage())));
     }
 
-    private ResponseEntity<ErrorResponse> build(HttpStatus status, String description, List<String> stack) {
+    private ResponseEntity<ErrorResponse> build(HttpStatus status, String description, List<ErrorStackEntry> stack) {
         ErrorResponse body = new ErrorResponse(String.valueOf(status.value()), description, DEFAULT_SOURCE, stack);
         return ResponseEntity.status(status).body(body);
     }

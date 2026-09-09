@@ -1,6 +1,7 @@
 package br.pucrs.constrsw.oauth.service;
 
 import br.pucrs.constrsw.oauth.config.KeycloakProperties;
+import br.pucrs.constrsw.oauth.dto.ErrorStackEntry;
 import br.pucrs.constrsw.oauth.exception.OAuthApiException;
 import java.time.Instant;
 import java.util.List;
@@ -83,10 +84,11 @@ public class KeycloakAdminService {
         } catch (HttpStatusCodeException ex) {
             throw new OAuthApiException(HttpStatus.BAD_GATEWAY, String.valueOf(ex.getStatusCode().value()),
                     "Nao foi possivel autenticar como administrador no Keycloak.", SOURCE_KEYCLOAK, ex,
-                    List.of(ex.getResponseBodyAsString()));
+                    List.of(new ErrorStackEntry("KeycloakError", ex.getResponseBodyAsString())));
         } catch (ResourceAccessException ex) {
             throw new OAuthApiException(HttpStatus.SERVICE_UNAVAILABLE, "503",
-                    "Nao foi possivel contatar o Keycloak.", SOURCE_KEYCLOAK, ex, List.of(ex.toString()));
+                    "Nao foi possivel contatar o Keycloak.", SOURCE_KEYCLOAK, ex,
+                    List.of(new ErrorStackEntry(ex.getClass().getSimpleName(), ex.getMessage())));
         }
     }
 

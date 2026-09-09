@@ -1,6 +1,7 @@
 package br.pucrs.constrsw.oauth.security;
 
 import br.pucrs.constrsw.oauth.dto.ErrorResponse;
+import br.pucrs.constrsw.oauth.dto.ErrorStackEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -34,7 +35,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
                 "401",
                 "Access token ausente ou invalido.",
                 "OAuthAPI",
-                List.of(authException.toString()));
+                List.of(new ErrorStackEntry(authException.getClass().getSimpleName(), authException.getMessage())));
         objectMapper.writeValue(response.getOutputStream(), body);
     }
 }

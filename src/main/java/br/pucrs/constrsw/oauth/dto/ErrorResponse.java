@@ -19,12 +19,12 @@ public class ErrorResponse {
     private String errorSource;
 
     @JsonProperty("error_stack")
-    private List<String> errorStack;
+    private List<ErrorStackEntry> errorStack;
 
     public ErrorResponse() {
     }
 
-    public ErrorResponse(String errorCode, String errorDescription, String errorSource, List<String> errorStack) {
+    public ErrorResponse(String errorCode, String errorDescription, String errorSource, List<ErrorStackEntry> errorStack) {
         this.errorCode = errorCode;
         this.errorDescription = errorDescription;
         this.errorSource = errorSource;
@@ -55,11 +55,11 @@ public class ErrorResponse {
         this.errorSource = errorSource;
     }
 
-    public List<String> getErrorStack() {
+    public List<ErrorStackEntry> getErrorStack() {
         return errorStack;
     }
 
-    public void setErrorStack(List<String> errorStack) {
+    public void setErrorStack(List<ErrorStackEntry> errorStack) {
         this.errorStack = errorStack;
     }
 }

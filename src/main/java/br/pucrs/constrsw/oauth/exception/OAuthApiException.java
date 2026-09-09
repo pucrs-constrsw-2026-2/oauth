@@ -1,5 +1,6 @@
 package br.pucrs.constrsw.oauth.exception;
 
+import br.pucrs.constrsw.oauth.dto.ErrorStackEntry;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -13,14 +14,14 @@ public class OAuthApiException extends RuntimeException {
     private final HttpStatus httpStatus;
     private final String errorCode;
     private final String errorSource;
-    private final List<String> errorStack;
+    private final List<ErrorStackEntry> errorStack;
 
     public OAuthApiException(HttpStatus httpStatus, String errorCode, String errorDescription, String errorSource) {
         this(httpStatus, errorCode, errorDescription, errorSource, null, new ArrayList<>());
     }
 
     public OAuthApiException(HttpStatus httpStatus, String errorCode, String errorDescription, String errorSource,
-                              Throwable cause, List<String> upstreamStack) {
+                              Throwable cause, List<ErrorStackEntry> upstreamStack) {
         super(errorDescription, cause);
         this.httpStatus = httpStatus;
         this.errorCode = errorCode;
@@ -52,7 +53,7 @@ public class OAuthApiException extends RuntimeException {
         return errorSource;
     }
 
-    public List<String> getErrorStack() {
+    public List<ErrorStackEntry> getErrorStack() {
         return errorStack;
     }
 }

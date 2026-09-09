@@ -1,6 +1,7 @@
 package br.pucrs.constrsw.oauth.service;
 
 import br.pucrs.constrsw.oauth.config.KeycloakProperties;
+import br.pucrs.constrsw.oauth.dto.ErrorStackEntry;
 import br.pucrs.constrsw.oauth.dto.LoginResponse;
 import br.pucrs.constrsw.oauth.exception.OAuthApiException;
 import java.util.List;
@@ -61,7 +62,8 @@ public class KeycloakAuthService {
         } catch (ResourceAccessException ex) {
             log.error("Keycloak unreachable at {}", keycloakProperties.tokenEndpoint(), ex);
             throw new OAuthApiException(HttpStatus.SERVICE_UNAVAILABLE, "503",
-                    "Nao foi possivel contatar o Keycloak.", SOURCE_KEYCLOAK, ex, List.of(ex.toString()));
+                    "Nao foi possivel contatar o Keycloak.", SOURCE_KEYCLOAK, ex,
+                    List.of(new ErrorStackEntry(ex.getClass().getSimpleName(), ex.getMessage())));
         }
     }
 
@@ -93,7 +95,8 @@ public class KeycloakAuthService {
         // the assignment maps that specific case to 401 regardless of what Keycloak used.
         if (keycloakBody != null && keycloakBody.contains("invalid_grant")) {
             return new OAuthApiException(HttpStatus.UNAUTHORIZED, "401",
-                    "Username e/ou password invalidos.", SOURCE_KEYCLOAK, ex, List.of(keycloakBody));
+                    "Username e/ou password invalidos.", SOURCE_KEYCLOAK, ex,
+                    List.of(new ErrorStackEntry("KeycloakError", keycloakBody)));
         }
 
         HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
@@ -101,6 +104,7 @@ public class KeycloakAuthService {
             status = HttpStatus.BAD_GATEWAY;
         }
         return new OAuthApiException(status, String.valueOf(ex.getStatusCode().value()),
-                "Erro ao autenticar no Keycloak: " + keycloakBody, SOURCE_KEYCLOAK, ex, List.of(keycloakBody));
+                "Erro ao autenticar no Keycloak: " + keycloakBody, SOURCE_KEYCLOAK, ex,
+                List.of(new ErrorStackEntry("KeycloakError", keycloakBody)));
     }
 }

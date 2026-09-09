@@ -15,6 +15,14 @@ Escopo entregue nesta etapa (responsável: configuração + login):
 - `POST /login` — autentica um usuário consumindo o endpoint de token do Keycloak
   (Direct Access Grant / `grant_type=password`) e devolve `token_type`,
   `access_token`, `expires_in`, `refresh_token`, `refresh_expires_in`.
+  > **Nota sobre a URL do Keycloak**: o enunciado descreve a rota como
+  > `{{base-keycloak-url}}/auth/realms/{{realm}}/protocol/openid-connect/token` (com
+  > `/auth`). O Keycloak deste projeto é a v26 (Quarkus), que **não usa mais** o
+  > context-path `/auth` desde a v17 — por isso `KeycloakProperties.tokenEndpoint()`
+  > monta a URL como `{{base-keycloak-url}}/realms/{{realm}}/protocol/openid-connect/token`
+  > (sem `/auth`), validado de ponta a ponta contra o `docker-compose.yml` deste
+  > repositório. Isso é uma diferença de versão do Keycloak, não um desvio deliberado
+  > do enunciado.
 - Autenticação Bearer: todas as demais rotas exigem `Authorization: Bearer <token>`,
   validado como JWT do Keycloak (`spring-boot-starter-oauth2-resource-server`).
 - Chamadas administrativas ao Keycloak (para Users/Roles): a service account do client
@@ -34,7 +42,7 @@ Escopo entregue nesta etapa (responsável: configuração + login):
     "error_code": "...",
     "error_description": "...",
     "error_source": "...",
-    "error_stack": ["..."]
+    "error_stack": [{ "type": "...", "message": "..." }]
   }
   ```
 
