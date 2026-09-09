@@ -15,6 +15,12 @@ body:form-urlencoded {
   password: {{password}}
 }
 
+vars:pre-request {
+  username: student@pucrs.br
+  password: a12345678
+  baseUrl: http://localhost:8181
+}
+
 script:post-response {
   if (res.getStatus() === 201) {
     const body = res.getBody();
@@ -26,7 +32,7 @@ script:post-response {
 tests {
   test("login retorna o contrato de tokens", function () {
     const body = res.getBody();
-
+  
     expect(res.getStatus()).to.equal(201);
     expect(res.getHeader("content-type")).to.include("application/json");
     expect(res.getHeader("cache-control")).to.include("no-store");
