@@ -1,0 +1,23 @@
+meta {
+  name: 01 - Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+tests {
+  test("servico OAuth esta saudavel", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property("status", "UP");
+  });
+}
+
+docs {
+  Confirma que o container OAuth esta acessivel na porta publicada pelo
+  docker-compose da raiz com o override do submodulo.
+}

@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "OAuth Grupo 08",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
