@@ -47,6 +47,15 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>2.6.0</version>
         </dependency>
+        <!--
+          Necessario apenas para manter compilando o codigo legado preservado
+          em com.constrsw.oauth.config.RestTemplateConfig (fora do component-scan
+          padrao). Nao afeta a app ativa em br.pucrs.constrsw.oauth.
+        -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
