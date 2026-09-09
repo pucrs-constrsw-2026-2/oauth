@@ -41,19 +41,19 @@ development_status:
   1-3-cliente-http-base-do-keycloak-e-interceptor-global-de-erros: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-autenticação-de-usuário-via-login-post-login: backlog
-  2-2-renovação-de-sessão-via-refresh-token-post-refresh: backlog
-  2-3-consulta-de-perfil-do-usuário-autenticado-get-me: backlog
+  epic-2: done
+  2-1-autenticação-de-usuário-via-login-post-login: done
+  2-2-renovação-de-sessão-via-refresh-token-post-refresh: done
+  2-3-consulta-de-perfil-do-usuário-autenticado-get-me: done
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-cadastro-de-novos-usuários-post-users: backlog
-  3-2-listagem-de-usuários-ativos-e-busca-por-id-get-users-e-get-u: backlog
-  3-3-atualização-de-atributos-e-senha-de-usuário-put-users-id-e-p: backlog
-  3-4-exclusão-lógica-de-usuário-delete-users-id: backlog
+  epic-3: done
+  3-1-cadastro-de-novos-usuários-post-users: done
+  3-2-listagem-de-usuários-ativos-e-busca-por-id-get-users-e-get-u: done
+  3-3-atualização-de-atributos-e-senha-de-usuário-put-users-id-e-p: done
+  3-4-exclusão-lógica-de-usuário-delete-users-id: done
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-validação-de-acesso-e-avaliação-de-políticas-por-recurso-pos: backlog
+  epic-4: done
+  4-1-validação-de-acesso-e-avaliação-de-políticas-por-recurso-pos: done
   epic-4-retrospective: optional

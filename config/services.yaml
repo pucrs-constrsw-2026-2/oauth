@@ -18,6 +18,7 @@ services:
             - '../src/Domain/Model/'
             - '../src/Domain/Exception/'
             - '../src/Application/DTO/'
+            - '../src/Infrastructure/OpenApi/Attribute/'
             - '../src/Kernel.php'
 
     App\Infrastructure\Http\Controller\:

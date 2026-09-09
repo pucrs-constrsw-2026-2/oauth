@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth & OIDC API — Swagger UI</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fafafa'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z'/></svg>">
+
+    <!-- Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Swagger UI CSS CDN -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css">
+
+    <style>
+        /* ==========================================================================
+           shadcn/ui Design System Tokens & Base Styles
+           ========================================================================== */
+        :root {
+            --background: #09090b;
+            --foreground: #fafafa;
+            --card: #121215;
+            --card-foreground: #fafafa;
+            --popover: #09090b;
+            --popover-foreground: #fafafa;
+            --primary: #fafafa;
+            --primary-foreground: #18181b;
+            --secondary: #27272a;
+            --secondary-foreground: #fafafa;
+            --muted: #18181b;
+            --muted-foreground: #a1a1aa;
+            --accent: #27272a;
+            --accent-foreground: #fafafa;
+            --destructive: #ef4444;
+            --destructive-foreground: #fafafa;
+            --border: #27272a;
+            --border-subtle: #1f1f23;
+            --input: #18181b;
+            --ring: #71717a;
+            --radius: 0.5rem;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            background-color: var(--background);
+            color: var(--foreground);
+            font-family: var(--font-sans);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: var(--background);
+            color: var(--foreground);
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--background);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+
+        /* ==========================================================================
+           shadcn/ui Header / Navbar
+           ========================================================================== */
+        .shadcn-nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            width: 100%;
+            height: 56px;
+            background: rgba(9, 9, 11, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .nav-icon-box {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: #18181b;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fafafa;
+        }
+
+        .nav-icon-box svg {
+            width: 15px;
+            height: 15px;
+            fill: currentColor;
+        }
+
+        .nav-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #fafafa;
+            letter-spacing: -0.01em;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 9999px;
+            font-size: 0.6875rem;
+            font-weight: 500;
+            padding: 0.125rem 0.5rem;
+            line-height: 1rem;
+            transition: colors 0.15s ease;
+        }
+
+        .badge-outline {
+            border: 1px solid var(--border);
+            color: var(--muted-foreground);
+            background: transparent;
+            font-family: var(--font-mono);
+        }
+
+        .badge-secondary {
+            background: #18181b;
+            border: 1px solid var(--border);
+            color: #e4e4e7;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-shadcn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            font-family: var(--font-sans);
+            padding: 0.375rem 0.75rem;
+            height: 32px;
+            text-decoration: none;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: #121215;
+            color: #e4e4e7;
+        }
+
+        .btn-shadcn:hover {
+            background: #27272a;
+            color: #ffffff;
+            border-color: #3f3f46;
+        }
+
+        .btn-shadcn svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 6px #10b981;
+            display: inline-block;
+        }
+
+        /* Container */
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem 1.5rem 3rem 1.5rem;
+            flex: 1;
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding: 1.25rem 1.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--muted-foreground);
+            margin-top: auto;
+        }
+
+        /* ==========================================================================
+           Swagger UI Complete shadcn/ui Theme Overrides
+           ========================================================================== */
+        .swagger-ui {
+            font-family: var(--font-sans) !important;
+            color: var(--foreground) !important;
+        }
+
+        /* Hide Default Topbar */
+        .swagger-ui .topbar {
+            display: none !important;
+        }
+
+        /* Wrapper */
+        .swagger-ui .wrapper {
+            padding: 0 !important;
+            max-width: 100% !important;
+        }
+
+        /* Info Section */
+        .swagger-ui .info {
+            margin: 1.5rem 0 2rem 0 !important;
+        }
+
+        .swagger-ui .info .title {
+            color: #fafafa !important;
+            font-family: var(--font-sans) !important;
+            font-size: 1.875rem !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.03em !important;
+            line-height: 1.2 !important;
+        }
+
+        .swagger-ui .info .title small {
+            background: #18181b !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 9999px !important;
+            color: #a1a1aa !important;
+            font-size: 0.75rem !important;
+            font-weight: 500 !important;
+            font-family: var(--font-mono) !important;
+            padding: 0.15rem 0.5rem !important;
+            vertical-align: middle !important;
+            top: -2px !important;
+            margin-left: 0.5rem !important;
+        }
+
+        .swagger-ui .info p, .swagger-ui .info li {
+            color: #a1a1aa !important;
+            font-size: 0.875rem !important;
+            line-height: 1.6 !important;
+        }
+
+        .swagger-ui .info a {
+            color: #fafafa !important;
+            text-decoration: underline !important;
+            text-underline-offset: 4px !important;
+            transition: color 0.15s ease !important;
+        }
+
+        .swagger-ui .info a:hover {
+            color: #d4d4d8 !important;
+        }
+
+        /* Scheme Container & Authorize Bar */
+        .swagger-ui .scheme-container {
+            background: #121215 !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius) !important;
+            padding: 0.875rem 1.25rem !important;
+            margin-bottom: 2rem !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+        }
+
+        .swagger-ui .schemes {
+            display: flex !important;
+            align-items: center !important;
+            width: 100% !important;
+            justify-content: space-between !important;
+        }
+
+        /* Authorize Button - shadcn primary button style */
+        .swagger-ui .btn.authorize {
+            background: #fafafa !important;
+            color: #09090b !important;
+            border: 1px solid #fafafa !important;
+            border-radius: 0.375rem !important;
+            font-family: var(--font-sans) !important;
+            font-weight: 600 !important;
+            font-size: 0.8125rem !important;
+            padding: 0.45rem 0.95rem !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 0.45rem !important;
+            transition: all 0.15s ease !important;
+            cursor: pointer !important;
+        }
+
+        .swagger-ui .btn.authorize:hover {
+            background: #e4e4e7 !important;
+            border-color: #e4e4e7 !important;
+            transform: translateY(-1px) !important;
+        }
+
+        .swagger-ui .btn.authorize svg {
+            fill: #09090b !important;
+            width: 13px !important;
+            height: 13px !important;
+        }
+
+        /* Tag / Category Header */
+        .swagger-ui .opblock-tag {
+            color: #fafafa !important;
+            font-family: var(--font-sans) !important;
+            font-size: 1.125rem !important;
+            font-weight: 600 !important;
+            letter-spacing: -0.02em !important;
+            border-bottom: 1px solid var(--border) !important;
+            padding: 1.75rem 0 0.65rem 0 !important;
+            margin: 1.5rem 0 1rem 0 !important;
+        }
+
+        .swagger-ui .opblock-tag small {
+            color: #71717a !important;
+            font-size: 0.8125rem !important;
+            font-weight: 400 !important;
+            margin-left: 0.5rem !important;
+        }
+
+        /* Operations Cards (opblock) */
+        .swagger-ui .opblock {
+            background: #121215 !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius) !important;
+            margin: 0 0 0.625rem 0 !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+            overflow: hidden !important;
+        }
+
+        .swagger-ui .opblock:hover {
+            border-color: #3f3f46 !important;
+        }
+
+        .swagger-ui .opblock.is-open {
+            border-color: #3f3f46 !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+        }
+
+        .swagger-ui .opblock .opblock-summary {
+            padding: 0.65rem 1rem !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 0.75rem !important;
+            border-radius: var(--radius) !important;
+            cursor: pointer !important;
+        }
+
+        /* Method Badges */
+        .swagger-ui .opblock .opblock-summary-method {
+            border-radius: 0.375rem !important;
+            font-family: var(--font-mono) !important;
+            font-weight: 600 !important;
+            font-size: 0.6875rem !important;
+            padding: 0.2rem 0.55rem !important;
+            min-width: 62px !important;
+            text-align: center !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.04em !important;
+        }
+
+        /* Method Color Schemes */
+        .swagger-ui .opblock.opblock-post {
+            background: #121215 !important;
+        }
+        .swagger-ui .opblock.opblock-post .opblock-summary-method {
+            background: rgba(16, 185, 129, 0.12) !important;
+            color: #34d399 !important;
+            border: 1px solid rgba(16, 185, 129, 0.3) !important;
+        }
+
+        .swagger-ui .opblock.opblock-get {
+            background: #121215 !important;
+        }
+        .swagger-ui .opblock.opblock-get .opblock-summary-method {
+            background: rgba(56, 189, 248, 0.12) !important;
+            color: #38bdf8 !important;
+            border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        }
+
+        .swagger-ui .opblock.opblock-put {
+            background: #121215 !important;
+        }
+        .swagger-ui .opblock.opblock-put .opblock-summary-method {
+            background: rgba(245, 158, 11, 0.12) !important;
+            color: #fbbf24 !important;
+            border: 1px solid rgba(245, 158, 11, 0.3) !important;
+        }
+
+        .swagger-ui .opblock.opblock-patch {
+            background: #121215 !important;
+        }
+        .swagger-ui .opblock.opblock-patch .opblock-summary-method {
+            background: rgba(249, 115, 22, 0.12) !important;
+            color: #fb923c !important;
+            border: 1px solid rgba(249, 115, 22, 0.3) !important;
+        }
+
+        .swagger-ui .opblock.opblock-delete {
+            background: #121215 !important;
+        }
+        .swagger-ui .opblock.opblock-delete .opblock-summary-method {
+            background: rgba(244, 63, 94, 0.12) !important;
+            color: #fb7185 !important;
+            border: 1px solid rgba(244, 63, 94, 0.3) !important;
+        }
+
+        /* Path & Summary */
+        .swagger-ui .opblock .opblock-summary-path {
+            color: #fafafa !important;
+            font-family: var(--font-mono) !important;
+            font-size: 0.8125rem !important;
+            font-weight: 500 !important;
+            letter-spacing: -0.01em !important;
+        }
+
+        .swagger-ui .opblock .opblock-summary-description {
+            color: #71717a !important;
+            font-size: 0.8125rem !important;
+            font-weight: 400 !important;
+        }
+
+        .swagger-ui .opblock .opblock-summary svg {
+            fill: #71717a !important;
+            width: 14px !important;
+            height: 14px !important;
+            transition: transform 0.15s ease !important;
+        }
+
+        /* Opblock Expanded Body */
+        .swagger-ui .opblock-body {
+            background: #09090b !important;
+            border-top: 1px solid var(--border) !important;
+            padding: 1.25rem !important;
+        }
+
+        .swagger-ui .opblock-description-wrapper p {
+            color: #a1a1aa !important;
+            font-size: 0.8125rem !important;
+            line-height: 1.6 !important;
+        }
+
+        .swagger-ui .opblock-section-header {
+            background: transparent !important;
+            padding: 0.5rem 0 !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        .swagger-ui .opblock-section-header h4 {
+            color: #fafafa !important;
+            font-family: var(--font-sans) !important;
+            font-size: 0.8125rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+        }
+
+        /* Tables & Parameters */
+        .swagger-ui table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+        }
+
+        .swagger-ui table thead th {
+            color: #71717a !important;
+            border-bottom: 1px solid var(--border) !important;
+            font-size: 0.6875rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            padding: 0.5rem 0.75rem !important;
+        }
+
+        .swagger-ui table tbody tr td {
+            color: #d4d4d8 !important;
+            border-color: var(--border) !important;
+            padding: 0.75rem !important;
+            font-size: 0.8125rem !important;
+        }
+
+        .swagger-ui .parameters-col_name {
+            color: #fafafa !important;
+            font-family: var(--font-mono) !important;
+            font-size: 0.8125rem !important;
+            font-weight: 500 !important;
+        }
+
+        .swagger-ui .parameter__name.required::after {
+            color: #ef4444 !important;
+            content: " *" !important;
+        }
+
+        .swagger-ui .parameter__type {
+            color: #71717a !important;
+            font-family: var(--font-mono) !important;
+            font-size: 0.75rem !important;
+        }
+
+        /* Inputs, Textareas, Selects */
+        .swagger-ui input[type=text],
+        .swagger-ui input[type=password],
+        .swagger-ui textarea,
+        .swagger-ui select {
+            background: #18181b !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 0.375rem !important;
+            color: #fafafa !important;
+            font-family: var(--font-mono) !important;
+            font-size: 0.8125rem !important;
+            padding: 0.45rem 0.65rem !important;
+            outline: none !important;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+        }
+
+        .swagger-ui input[type=text]:focus,
+        .swagger-ui input[type=password]:focus,
+        .swagger-ui textarea:focus,
+        .swagger-ui select:focus {
+            border-color: #71717a !important;
+            box-shadow: 0 0 0 1px #71717a !important;
+        }
+
+        /* Action Buttons */
+        .swagger-ui .btn.execute {
+            background: #fafafa !important;
+            color: #09090b !important;
+            border: none !important;
+            border-radius: 0.375rem !important;
+            font-family: var(--font-sans) !important;
+            font-weight: 600 !important;
+            font-size: 0.8125rem !important;
+            padding: 0.45rem 1.25rem !important;
+            cursor: pointer !important;
+            transition: all 0.15s ease !important;
+        }
+
+        .swagger-ui .btn.execute:hover {
+            background: #e4e4e7 !important;
+        }
+
+        .swagger-ui .btn.cancel {
+            background: #18181b !important;
+            color: #a1a1aa !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 0.375rem !important;
+            font-family: var(--font-sans) !important;
+            font-size: 0.8125rem !important;
+            padding: 0.45rem 1rem !important;
+        }
+
+        .swagger-ui .try-out__btn {
+            background: #18181b !important;
+            color: #d4d4d8 !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 0.375rem !important;
+            font-family: var(--font-sans) !important;
+            font-weight: 500 !important;
+            font-size: 0.75rem !important;
+            padding: 0.3rem 0.7rem !important;
+            transition: all 0.15s ease !important;
+        }
+
+        .swagger-ui .try-out__btn:hover {
+            background: #27272a !important;
+            color: #fafafa !important;
+            border-color: #3f3f46 !important;
+        }
+
+        /* Responses */
+        .swagger-ui .responses-table {
+            background: transparent !important;
+        }
+
+        .swagger-ui .response-col_status {
+            color: #34d399 !important;
+            font-family: var(--font-mono) !important;
+            font-weight: 600 !important;
+            font-size: 0.8125rem !important;
+        }
+
+        .swagger-ui .response-col_status:has([data-code^="4"]),
+        .swagger-ui .response-col_status:has([data-code^="5"]) {
+            color: #fb7185 !important;
+        }
+
+        .swagger-ui .response-col_description {
+            color: #a1a1aa !important;
+            font-size: 0.8125rem !important;
+        }
+
+        .swagger-ui .responses-inner h4,
+        .swagger-ui .responses-inner h5 {
+            color: #fafafa !important;
+            font-family: var(--font-sans) !important;
+            font-size: 0.75rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+        }
+
+        /* Code Blocks & JSON Viewers */
+        .swagger-ui pre,
+        .swagger-ui .highlight-code {
+            background: #09090b !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 0.375rem !important;
+            font-family: var(--font-mono) !important;
+            font-size: 0.8125rem !important;
+            color: #e4e4e7 !important;
+        }
+
+        .swagger-ui .microlight {
+            font-family: var(--font-mono) !important;
+            color: #e4e4e7 !important;
+        }
+
+        /* Models Section */
+        .swagger-ui section.models {
+            background: #121215 !important;
+            border: 1px solid var(--border) !important;
+            border-radius: var(--radius) !important;
+            margin-top: 2rem !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .swagger-ui section.models h4 {
+            color: #fafafa !important;
+            font-family: var(--font-sans) !important;
+            font-size: 0.9375rem !important;
+            font-weight: 600 !important;
+            border-bottom: 1px solid var(--border) !important;
+            padding: 0.875rem 1.25rem !important;
+        }
+
+        .swagger-ui section.models h4 svg {
+            fill: #71717a !important;
+        }
+
+        .swagger-ui .model-box {
+            background: #09090b !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 0.375rem !important;
+            padding: 0.75rem 1rem !important;
+            font-family: var(--font-mono) !important;
+            color: #d4d4d8 !important;
+        }
+
+        .swagger-ui .model-title {
+            color: #fafafa !important;
+            font-family: var(--font-sans) !important;
+            font-size: 0.8125rem !important;
+            font-weight: 600 !important;
+        }
+
+        .swagger-ui .prop-type {
+            color: #38bdf8 !important;
+            font-family: var(--font-mono) !important;
+        }
+
+        .swagger-ui .prop-format {
+            color: #71717a !important;
+        }
+
+        /* Modal / Dialog (Authorize Dialog) */
+        .swagger-ui .dialog-ux .backdrop-ux {
+            background: rgba(0, 0, 0, 0.75) !important;
+            backdrop-filter: blur(4px) !important;
+            -webkit-backdrop-filter: blur(4px) !important;
+        }
+
+        .swagger-ui .dialog-ux .modal-ux {
+            background: #09090b !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 0.75rem !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+            max-width: 540px !important;
+            color: #fafafa !important;
+        }
+
+        .swagger-ui .modal-ux-header {
+            border-bottom: 1px solid var(--border) !important;
+            padding: 1.25rem 1.5rem !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+        }
+
+        .swagger-ui .modal-ux-header h3 {
+            color: #fafafa !important;
+            font-family: var(--font-sans) !important;
+            font-size: 1.125rem !important;
+            font-weight: 600 !important;
+            letter-spacing: -0.01em !important;
+        }
+
+        .swagger-ui .dialog-ux .modal-ux-header .close-modal {
+            fill: #71717a !important;
+            cursor: pointer !important;
+            transition: fill 0.15s ease !important;
+        }
+
+        .swagger-ui .dialog-ux .modal-ux-header .close-modal:hover {
+            fill: #fafafa !important;
+        }
+
+        .swagger-ui .modal-ux-content {
+            padding: 1.5rem !important;
+        }
+
+        .swagger-ui .modal-ux-content p,
+        .swagger-ui .modal-ux-content label {
+            color: #a1a1aa !important;
+            font-size: 0.8125rem !important;
+            line-height: 1.5 !important;
+        }
+
+        .swagger-ui .auth-btn-wrapper {
+            display: flex !important;
+            justify-content: flex-end !important;
+            gap: 0.5rem !important;
+            margin-top: 1rem !important;
+            padding-top: 1rem !important;
+            border-top: 1px solid var(--border) !important;
+        }
+
+        .swagger-ui .auth-btn-wrapper .btn-done {
+            background: #18181b !important;
+            color: #fafafa !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 0.375rem !important;
+            font-family: var(--font-sans) !important;
+            font-size: 0.8125rem !important;
+            font-weight: 500 !important;
+            padding: 0.45rem 1rem !important;
+        }
+
+        .swagger-ui .auth-btn-wrapper .modal-btn.auth {
+            background: #fafafa !important;
+            color: #09090b !important;
+            border: none !important;
+            border-radius: 0.375rem !important;
+            font-family: var(--font-sans) !important;
+            font-size: 0.8125rem !important;
+            font-weight: 600 !important;
+            padding: 0.45rem 1.25rem !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- shadcn/ui Header Navigation -->
+    <header class="shadcn-nav">
+        <div class="nav-left">
+            <div class="nav-icon-box">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+                </svg>
+            </div>
+            <span class="nav-title">OAuth &amp; OIDC API</span>
+            <span class="badge badge-outline">v1.0.0</span>
+            <span class="badge badge-secondary">Keycloak</span>
+            <span class="badge badge-secondary" style="color: #38bdf8;">Symfony 6.4</span>
+        </div>
+
+        <div class="nav-right">
+            <a href="/docs/openapi.json" target="_blank" class="btn-shadcn" title="Baixar especificação OpenAPI 3.0 em JSON">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="16 18 22 12 16 6"/>
+                    <polyline points="8 6 2 12 8 18"/>
+                </svg>
+                OpenAPI JSON
+            </a>
+            <a href="/health" target="_blank" class="btn-shadcn" title="Status operacional">
+                <span class="status-dot"></span>
+                Health
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="container">
+        <div id="swagger-ui"></div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        Construção de Software — PUCRS (2026-2) • Grupo 01 • Arquitetura Hexagonal
+    </footer>
+
+    <!-- Swagger UI Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" charset="UTF-8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
+    <script>
+        window.onload = function() {
+            window.ui = SwaggerUIBundle({
+                url: "{{OPENAPI_JSON_URL}}",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                docExpansion: "list",
+                filter: true,
+                persistAuthorization: true,
+                displayRequestDuration: true,
+                tryItOutEnabled: true
+            });
+        };
+    </script>
+</body>
+</html>
