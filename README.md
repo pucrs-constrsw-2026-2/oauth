@@ -26,20 +26,20 @@ npm install
 npm run start:dev
 ```
 
-Para iniciar Keycloak e a API juntos:
+A partir da raiz do repositório, para iniciar Keycloak e a API juntos:
 
 ```powershell
 docker compose up --build
 ```
 
-Endereços locais: API `http://localhost:8088`, saúde `GET /health`, Swagger `http://localhost:8088/docs` e Keycloak `http://localhost:8080`.
+Endereços locais: API `http://localhost:8181`, saúde `GET /health`, Swagger `http://localhost:8181/docs` e Keycloak `http://localhost:8081`.
 
 Usuário de demonstração: `demo@pucrs.br` / `demo`. Troque os segredos antes de qualquer ambiente compartilhado.
 
 ## Teste rápido
 
 ```powershell
-Invoke-RestMethod -Method Post http://localhost:8088/v1/auth/login `
+Invoke-RestMethod -Method Post http://localhost:8181/v1/auth/login `
 	-ContentType 'application/json' `
 	-Body '{"username":"demo@pucrs.br","password":"demo"}'
 ```
