@@ -84,6 +84,37 @@ constructor(private readonly keycloak: KeycloakSettingsService) {}
 // this.keycloak.adminPath('users')
 ```
 
+## `POST /login`
+
+Exchanges username/password for Keycloak tokens (Story 2.1, CAP-1). No
+`Authorization` header required.
+
+- **Body**: `multipart/form-data` **or** `application/x-www-form-urlencoded` —
+  `username`, `password`. Any other content-type is rejected. The T1 brief's
+  form also lists `client_id` and `grant_type`; if the caller sends them they
+  are **accepted and silently ignored** — the client credentials sent to
+  Keycloak always come from `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET`,
+  never from the request.
+- **Success**: `200` (not `201` — nothing is created) with JSON:
+
+  ```json
+  {
+    "token_type": "Bearer",
+    "access_token": "...",
+    "expires_in": 300,
+    "refresh_token": "...",
+    "referesh_expires_in": 1800
+  }
+  ```
+
+  `referesh_expires_in` keeps the brief's spelling on purpose — it is mapped
+  from Keycloak's `refresh_expires_in`.
+- **Errors**: `400` when `username`/`password` is missing/blank or the
+  content-type is unsupported (local `OA-400`, checked before any Keycloak
+  call); `401` when Keycloak rejects the credentials (`error_code` relays
+  Keycloak's `error`, typically `invalid_grant`). Both use the OA envelope
+  above.
+
 ## Authentication on protected routes
 
 Routes under `/users` and `/roles` require the caller's Keycloak access token:
