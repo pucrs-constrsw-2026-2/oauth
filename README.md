@@ -320,6 +320,39 @@ does not edit the professor's realm to make it match the brief.
 Policies on client `oauth` lists these four (three B.2 + `student-policy`)
 after the actual volume import.
 
+### Story 6.4 — resource-based permissions
+
+Three resource-based permissions, all `decisionStrategy: AFFIRMATIVE`,
+confirmed present in `constrsw.json` (the export nests `resources` /
+`applyPolicies` as JSON strings under each permission's `config` — read those,
+not the top-level `permissions` array, which the export leaves empty):
+
+| Permission | Resources | Applied policies |
+| --- | --- | --- |
+| `administrator-permissions` | `professors`, `resources`, `rooms`, `students` | `administrator-policy` |
+| `coordinator-permissions` | `classes`, `courses` | `coordinator-policy`, `administrator-policy` |
+| `professor-permissions` | `lessons`, `reservations` | `coordinator-policy`, `professor-policy`, `administrator-policy` |
+
+**These extra policies (`coordinator-permissions` also granting
+`administrator-policy`; `professor-permissions` also granting
+`coordinator-policy` + `administrator-policy`) are intentional, not gaps.**
+They are **not** removed to match the Moodle brief's single-policy table —
+see "Divergence from the T1 brief" in `keycloak-authz.md` (group decision,
+2026-09-09: the realm wins). With `AFFIRMATIVE` strategy, access is
+hierarchical:
+
+- `administrator` → all eight resources
+- `coordinator` → `courses`, `classes`, `lessons`, `reservations`
+- `professor` → `lessons`, `reservations`
+- `student` → none (`student-policy` applied to no permission)
+
+No gap to fill; configuration is exactly what the professor's realm already
+specifies. This matrix is the **test oracle** for Story 6.5.
+
+**Still pending:** same live-console caveat as 6.1 — confirm Authorization →
+Permissions on client `oauth` shows these effective bindings (not just the
+raw JSON shape) after the actual volume import.
+
 ## Running locally
 
 Dependencies:
