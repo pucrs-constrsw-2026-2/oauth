@@ -3,8 +3,10 @@ package com.seugrupo.oauth.exception;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
@@ -74,7 +76,12 @@ public class GlobalExceptionHandler {
         return malformedRequestResponse(ex);
     }
 
-    @ExceptionHandler({HttpMediaTypeNotSupportedException.class, MultipartException.class})
+    @ExceptionHandler({
+            HttpMediaTypeNotSupportedException.class,
+            MultipartException.class,
+            HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class
+    })
     public ResponseEntity<ErrorResponse> handleMalformedRequest(Exception ex) {
         return malformedRequestResponse(ex);
     }
