@@ -54,3 +54,10 @@ services:
     # Outbound Ports (Adapters) - Épico 3
     App\Domain\Port\Outbound\KeycloakUserPortInterface: '@App\Infrastructure\Keycloak\Adapter\KeycloakUserAdapter'
 
+    # Inbound Ports (Use Cases) - Épico 4
+    App\Domain\Port\Inbound\AuthorizeResourceUseCaseInterface: '@App\Application\UseCase\Authorization\AuthorizeResourceUseCase'
+
+    # Outbound Ports (Adapters) - Épico 4
+    App\Domain\Port\Outbound\KeycloakAuthorizationPortInterface: '@App\Infrastructure\Keycloak\Adapter\KeycloakAuthorizationAdapter'
+
+

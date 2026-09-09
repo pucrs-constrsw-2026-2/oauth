@@ -20,6 +20,14 @@
 .vscode/
 *.sublime-project
 *.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
 
 # PHP / Composer caches
 composer.phar
