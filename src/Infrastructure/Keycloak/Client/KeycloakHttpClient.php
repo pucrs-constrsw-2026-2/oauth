@@ -20,9 +20,13 @@ class KeycloakHttpClient
         private string $baseUrl,
         private string $realm = 'constrsw',
         private string $clientId = 'oauth',
-        private string $clientSecret = 'a12345678-secret-mock'
+        private string $clientSecret = 'a12345678-secret-mock',
+        private ?string $adminUser = null,
+        private ?string $adminPassword = null
     ) {
         $this->baseUrl = rtrim($this->baseUrl, '/');
+        $this->adminUser = $this->adminUser ?: ($_ENV['KEYCLOAK_ADMIN'] ?? getenv('KEYCLOAK_ADMIN') ?: null);
+        $this->adminPassword = $this->adminPassword ?: ($_ENV['KEYCLOAK_ADMIN_PASSWORD'] ?? getenv('KEYCLOAK_ADMIN_PASSWORD') ?: null);
     }
 
     public function getBaseUrl(): string
@@ -85,12 +89,22 @@ class KeycloakHttpClient
             return $this->cachedAdminToken;
         }
 
-        $tokenUrl = "realms/{$this->realm}/protocol/openid-connect/token";
-        $body = [
-            'grant_type' => 'client_credentials',
-            'client_id' => $this->clientId,
-            'client_secret' => $this->clientSecret,
-        ];
+        if (!empty($this->adminUser) && !empty($this->adminPassword)) {
+            $tokenUrl = "realms/master/protocol/openid-connect/token";
+            $body = [
+                'grant_type' => 'password',
+                'client_id' => 'admin-cli',
+                'username' => $this->adminUser,
+                'password' => $this->adminPassword,
+            ];
+        } else {
+            $tokenUrl = "realms/{$this->realm}/protocol/openid-connect/token";
+            $body = [
+                'grant_type' => 'client_credentials',
+                'client_id' => $this->clientId,
+                'client_secret' => $this->clientSecret,
+            ];
+        }
 
         $response = $this->httpClient->request('POST', $this->baseUrl . '/' . $tokenUrl, [
             'body' => $body,
