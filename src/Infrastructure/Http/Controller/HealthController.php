@@ -10,6 +10,7 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class HealthController extends AbstractController
 {
+    #[Route('/health', name: 'api_health_base', methods: ['GET'])]
     #[Route('/api/health', name: 'api_health', methods: ['GET'])]
     #[Route('/', name: 'api_root', methods: ['GET'])]
     public function health(): JsonResponse
