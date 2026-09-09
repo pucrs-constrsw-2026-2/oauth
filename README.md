@@ -18,13 +18,28 @@ docker volume create constrsw-keycloak-data
 docker compose up -d --build
 ```
 
+**Mac com Apple Silicon recente (M4) / macOS 15.2+**: a imagem oficial do
+Keycloak crasha (`SIGILL` na JVM) e o healthcheck dela depende de `curl`
+(que nao existe na imagem) - dois bugs de ambiente, reportados ao professor,
+sem relacao com a configuracao dele. Contornamos os dois **sem alterar
+nenhum arquivo da `base`**, com um override que mora todo dentro deste
+submodulo (`backend/oauth/docker-compose.override.yml` +
+`backend/oauth/infra-local/keycloak.Dockerfile` - detalhes em
+[`infra-local/README.md`](./infra-local/README.md)). Para subir usando o
+contorno, rode este comando em vez do `docker compose up` acima (ainda a
+partir da raiz do repo, `T1`):
+
+```bash
+docker compose -f docker-compose.yml -f backend/oauth/docker-compose.override.yml up -d --build
+```
+
 Isso sobe `keycloak` (realm `constrsw` importado de `constrsw.json`, sem
 prefixo `/auth`) e esta API (`oauth`) em `http://localhost:8181` (porta
 externa definida em `OAUTH_EXTERNAL_API_PORT` no `.env` da raiz; a porta
 interna do container e `3001`).
 
-- Swagger: http://localhost:8182/swagger
-- Health check: http://localhost:8182/health
+- Swagger: http://localhost:8181/swagger
+- Health check: http://localhost:8181/health
 - Keycloak (console admin): http://localhost:8081 (`admin` / `a12345678`)
 
 Para rodar so a API localmente (sem Docker), com o Keycloak do compose ja
@@ -83,7 +98,6 @@ que e repassado como esta para a Admin REST API do Keycloak.
 
 ## Cheat-sheet de curl
 
->>> curl -s http://localhost:${OAUTH_EXTERNAL_API_PORT:-8181}/health
 ```bash
 export API=http://localhost:8181
 
