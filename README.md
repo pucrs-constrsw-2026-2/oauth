@@ -231,6 +231,45 @@ Used when the failure is local (bad structure, missing/invalid auth) and Keycloa
 - `src/errors/oa-error.mapper.ts` — `OaException` + `OaErrorMapper` factory (`badRequest`, `unauthorized`, `forbidden`, `notFound`, `conflict`, `fromKeycloak`). Route/service code throws these instead of building JSON by hand.
 - `src/errors/oa-exception.filter.ts` — global Nest exception filter (`app.useGlobalFilters` in `main.ts`). Formats **any** thrown value — `OaException`, a standard Nest `HttpException`, or an unexpected error — into the envelope above. No route can fall back to Nest's default `{ statusCode, message }` body.
 
+## Authorization model (client `oauth`)
+
+Stories 6.1-6.4 are **verify-first**: the professor's realm import
+(`infrastructure/dev.local/services/keycloak/constrsw.json`) already ships the
+full B.2 authorization model for client `oauth`. This group does **not** own
+or edit that file — it verifies what the import contains and would only
+gap-fill genuinely missing objects via the running Admin Console or Admin API.
+
+> **Verification method used here:** static inspection of `constrsw.json` as
+> committed to the `base` repo (the same file `start-dev --import-realm`
+> loads). This confirms what *will* be imported. Docker/Keycloak were not
+> running in this environment, so **live** Admin Console re-confirmation after
+> an actual `docker compose up` + volume import is still recommended before
+> treating 6.1-6.4 as fully closed — see the caveat under each story below.
+
+### Story 6.1 — client roles
+
+Client roles on `oauth`, confirmed present in `constrsw.json`:
+
+| Role | Present |
+| --- | --- |
+| `administrator` | ✅ |
+| `coordinator` | ✅ |
+| `professor` | ✅ |
+| `student` | ✅ |
+
+These are the canonical **English** B.2 names — never `funcionario` /
+`coordenador`. No gap to fill; no realm JSON change needed. (The client also
+defines `uma_protection`, a Keycloak-internal role for its own Authorization
+Services client — not part of the B.2 set, left as-is.)
+
+Story 5.6's logical-delete representation for roles created via this API is
+separate from these four client roles; B.2 policy binding always uses the
+canonical **active** role names above, never an inactive/soft-deleted form.
+
+**Still pending:** confirm the same four roles appear under **Client roles**
+for `oauth` in the running Admin Console (`:8081`) after the volume import,
+since a stale `constrsw-keycloak-data` volume would not pick up JSON changes.
+
 ## Running locally
 
 Dependencies:
