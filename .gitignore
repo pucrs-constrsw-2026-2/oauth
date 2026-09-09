@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+coverage/
+*.tsbuildinfo
+
+# environment — the professor's root .env is the source of truth.
+# Never commit an .env here; this service reads process env injected by compose.
+.env
+.env.*
+
+# editor / OS
+.DS_Store
+.idea/
+*.log
+
+# divergent realm export (see story 1.1 Dev Notes) — canonical import is
+# infrastructure/dev.local/services/keycloak/constrsw.json in the base repo
+keycloak/
