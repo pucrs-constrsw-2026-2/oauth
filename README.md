@@ -115,6 +115,21 @@ Exchanges username/password for Keycloak tokens (Story 2.1, CAP-1). No
   Keycloak's `error`, typically `invalid_grant`). Both use the OA envelope
   above.
 
+## `POST /refresh`
+
+Trades a valid `refresh_token` for a new token pair without re-entering the
+password (Story 2.2, CAP-7). No `Authorization` header required — the refresh
+token itself is the credential.
+
+- **Body**: `multipart/form-data` **or** `application/x-www-form-urlencoded` —
+  `refresh_token` only.
+- **Success**: `200` with the same field set as `/login` (`token_type`,
+  `access_token`, `expires_in`, `refresh_token`, `referesh_expires_in` when
+  Keycloak returns a refresh expiry).
+- **Errors**: `400` when `refresh_token` is missing/blank or the content-type
+  is unsupported; `401` when the refresh token is invalid or expired
+  (`error_code` relays Keycloak's `error`, typically `invalid_grant`).
+
 ## Authentication on protected routes
 
 Routes under `/users` and `/roles` require the caller's Keycloak access token:

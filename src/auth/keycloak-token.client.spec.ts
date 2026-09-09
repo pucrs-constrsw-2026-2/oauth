@@ -97,4 +97,55 @@ describe('KeycloakTokenClient', () => {
       expect(thrown?.getStatus()).toBe(401);
     });
   });
+
+  describe('refreshGrant', () => {
+    it('posts grant_type=refresh_token with the server client credentials and the given refresh token', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(200, {
+          token_type: 'Bearer',
+          access_token: 'new-access-token',
+          expires_in: 300,
+          refresh_token: 'new-refresh-token',
+          refresh_expires_in: 1800,
+        }),
+      );
+
+      const result = await client.refreshGrant('old-refresh-token');
+
+      const [, init] = fetchMock.mock.calls[0];
+      const sentBody = new URLSearchParams(init.body as string);
+      expect(sentBody.get('grant_type')).toBe('refresh_token');
+      expect(sentBody.get('client_id')).toBe('oauth');
+      expect(sentBody.get('client_secret')).toBe('super-secret');
+      expect(sentBody.get('refresh_token')).toBe('old-refresh-token');
+
+      expect(result).toEqual({
+        tokenType: 'Bearer',
+        accessToken: 'new-access-token',
+        expiresIn: 300,
+        refreshToken: 'new-refresh-token',
+        refreshExpiresIn: 1800,
+      });
+    });
+
+    it('throws a 401 OaException relaying Keycloak on an invalid/expired refresh token', async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(400, {
+          error: 'invalid_grant',
+          error_description: 'Token is not active',
+        }),
+      );
+
+      let thrown: OaException | undefined;
+      try {
+        await client.refreshGrant('expired-refresh-token');
+      } catch (error) {
+        thrown = error as OaException;
+      }
+
+      expect(thrown).toBeInstanceOf(OaException);
+      expect(thrown?.getStatus()).toBe(401);
+      expect(thrown?.toEnvelope().error_code).toBe('invalid_grant');
+    });
+  });
 });

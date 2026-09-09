@@ -33,6 +33,14 @@ export class KeycloakTokenClient {
     return this.requestToken({ grant_type: 'password', username, password });
   }
 
+  /** `grant_type=refresh_token` — used by `POST /refresh`. */
+  async refreshGrant(refreshToken: string): Promise<KeycloakTokenResult> {
+    return this.requestToken({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    });
+  }
+
   private async requestToken(
     fields: Record<string, string>,
   ): Promise<KeycloakTokenResult> {
