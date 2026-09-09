@@ -84,6 +84,69 @@ constructor(private readonly keycloak: KeycloakSettingsService) {}
 // this.keycloak.adminPath('users')
 ```
 
+## Authentication on protected routes
+
+Routes under `/users` and `/roles` require the caller's Keycloak access token:
+
+```
+Authorization: Bearer <access_token>
+```
+
+`BearerAuthGuard` runs before the handler. Apply it with `@UseGuards`; the
+resolved caller is attached to the request:
+
+```ts
+@UseGuards(BearerAuthGuard)
+@Controller('users')
+export class UsersController {
+  @Get()
+  list(@Req() req: AuthenticatedRequest) {
+    req.user; // { sub, email, preferredUsername, name, raw }
+  }
+}
+```
+
+`CommonModule` is `@Global()`, so importing it once in `AppModule` is enough.
+
+### How the guard verifies a token
+
+It calls Keycloak's UserInfo endpoint rather than validating the JWT signature
+locally. Keycloak therefore stays the authority on whether a token is still
+usable, so a logout or a disabled account takes effect immediately instead of
+lingering until the token expires. The cost is one upstream call per request,
+which this service accepts.
+
+No JWKS variable is introduced — see the environment contract above.
+
+### 401 vs 403
+
+| Status | Meaning | Decided by |
+| --- | --- | --- |
+| `401` | No token, malformed header, or Keycloak does not accept the token | The guard |
+| `403` | The caller is known but not allowed to perform the operation | Keycloak |
+| `503` | The token could not be verified because Keycloak is unreachable | The guard |
+
+**The guard never decides permissions.** Any caller with a token Keycloak
+accepts passes it, even with no roles at all. Authorization is answered by
+Keycloak when the route calls the Admin API: a caller lacking the required
+`realm-management` rights gets a `403` from Keycloak, which the route relays.
+
+This is deliberate. Holding a local role-to-operation table here would
+duplicate the realm's own configuration and drift from it — the B.2 permission
+matrix in the brief already differs from what `constrsw.json` actually
+configures. Keycloak is the single source of truth.
+
+`503` exists so that an outage is not reported as an authentication failure: a
+caller with a perfectly valid token must not be told to sign in again because a
+dependency is down.
+
+### Error format
+
+The guard throws the standard Nest exceptions. Once the uniform error envelope
+(Story 3.1) registers its exception filter, those responses are formatted into
+`{ error_code, error_description, error_source, error_stack }` with no change
+required here.
+
 ## Running locally
 
 Dependencies:
