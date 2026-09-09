@@ -297,6 +297,29 @@ HTTP routes or domain services (NFR11).
 **Still pending:** same live-console caveat as 6.1 — confirm Authorization →
 Resources on client `oauth` lists these eight after the actual volume import.
 
+### Story 6.3 — role policies
+
+One **Role** policy per B.2 permission-bearing role, each filtered by client
+`oauth` (`oauth/<role>` in the export), confirmed in `constrsw.json`:
+
+| Policy | Bound role |
+| --- | --- |
+| `administrator-policy` | `administrator` |
+| `coordinator-policy` | `coordinator` |
+| `professor-policy` | `professor` |
+
+No gap to fill.
+
+The import **also** contains `student-policy` (bound to `student`, filtered by
+client `oauth`). It exists in the realm but — see Story 6.4 — is **not**
+applied to any resource permission, so `student` still ends up with **no**
+resource grants, matching B.2. This is documented, not removed: this group
+does not edit the professor's realm to make it match the brief.
+
+**Still pending:** same live-console caveat as 6.1 — confirm Authorization →
+Policies on client `oauth` lists these four (three B.2 + `student-policy`)
+after the actual volume import.
+
 ## Running locally
 
 Dependencies:
