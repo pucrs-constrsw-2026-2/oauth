@@ -448,6 +448,55 @@ from the existing volume. Our future `POST /login` contract remains
 `application/x-www-form-urlencoded` with HTTP `200`, even if the Keycloak README
 shows a JSON example.
 
+## Users
+
+All user routes require the shared Bearer guard **and the `administrator` client
+role**, the same rule the role routes use. Because the service authenticates to
+the Admin API with `KEYCLOAK_ADMIN`, Keycloak itself would never answer `403` —
+so that check is what makes the "known caller, not permitted" case observable.
+
+JSON fields use the hyphenated names from the brief (`first-name`, `last-name`),
+which differ from Keycloak's own `firstName` / `lastName`.
+
+| Method | Path | Success | Notes |
+| --- | --- | --- | --- |
+| `POST` | `/users` | `201` | Body `username`, `password`, `first-name`, `last-name` |
+| `GET` | `/users` | `200` | Enabled users only unless `?enabled=false` |
+| `GET` | `/users/:id` | `200` | |
+| `PUT` | `/users/:id` | `200`, empty body | `first-name`, `last-name`, `enabled` |
+| `PATCH` | `/users/:id` | `200`, empty body | Body `{ "password": "..." }` |
+| `DELETE` | `/users/:id` | `204`, empty body | Logical delete |
+
+### Creating a user
+
+`username` must be a valid e-mail address: the realm uses e-mail as the
+username, so the value is stored as both `username` and `email`. The generated
+id comes from the `Location` header Keycloak returns, since its `201` has no
+body. A username already in use answers `409`.
+
+### `PUT` accepts only three attributes
+
+`first-name`, `last-name` and `enabled`. Any other field is rejected with `400`,
+**including `username`** — changing it would change the account's identity,
+because the username is the e-mail. Use `PATCH` for the password.
+
+Keycloak's user update replaces the whole representation, so the service reads
+the stored user first and merges the changes onto it; otherwise omitting a field
+would clear it.
+
+### `DELETE` never removes anything
+
+It disables the user. Calling it on an already-disabled user still answers
+`204`, so the route is idempotent. Re-enable through `PUT` with
+`{ "enabled": true }`.
+
+### `GET /users` defaults to enabled
+
+With no query string the list contains only enabled users, following the
+brief's wording. `?enabled=false` returns the disabled ones; any other value is
+a `400`. The filter is also reapplied locally, because some Keycloak setups
+ignore the query parameter.
+
 ## Roles and assignments
 
 All role routes require the shared Bearer guard **and the `administrator` client

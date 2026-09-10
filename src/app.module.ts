@@ -8,6 +8,7 @@ import { AppConfigModule } from './config';
 import { OaExceptionFilter } from './errors';
 import { HealthController } from './health/health.controller';
 import { RolesModule } from './roles';
+import { UsersModule } from './users';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { RolesModule } from './roles';
     AuthModule,
     AuthzModule,
     RolesModule,
+    UsersModule,
   ],
   controllers: [HealthController],
   // Registered through APP_FILTER rather than useGlobalFilters so the filter is
