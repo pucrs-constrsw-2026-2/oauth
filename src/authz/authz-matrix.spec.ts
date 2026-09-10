@@ -1,7 +1,10 @@
+import { HttpStatus } from '@nestjs/common';
+
 import { AuthzController } from './authz.controller';
 import { KeycloakAuthorizationClient } from './keycloak-authorization.client';
 import type { AuthenticatedRequest } from '../common';
 import type { AuthzResourceName } from './authz-resource';
+import { OaException } from '../errors';
 
 /**
  * Story 6.5, AC #6 — documented lab check against the realm-derived matrix
@@ -73,9 +76,18 @@ describe('POST /authz/validate against the realm-derived matrix (story 6.5)', ()
       const forbidden = ALL_RESOURCES.filter((resource) => !allowed.includes(resource));
       if (forbidden.length > 0) {
         it.each(forbidden)('forbids %s → 403', async (resource) => {
-          await expect(
-            controller.validate(requestFor(role), { resource }),
-          ).rejects.toMatchObject({});
+          let error: OaException | undefined;
+          try {
+            await controller.validate(requestFor(role), { resource });
+          } catch (thrown) {
+            error = thrown as OaException;
+          }
+
+          // Asserting the status, not merely that something was thrown: a
+          // bare `rejects` would also pass for a 400 or a 500.
+          expect(error).toBeInstanceOf(OaException);
+          expect(error?.getStatus()).toBe(HttpStatus.FORBIDDEN);
+          expect(error?.toEnvelope().error_code).toBe('OA-403');
         });
       }
     });
