@@ -9,6 +9,7 @@ import com.seugrupo.oauth.exception.KeycloakErrorMapper;
 import com.seugrupo.oauth.exception.OAuthApiException;
 import org.springframework.core.codec.DecodingException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -83,6 +84,51 @@ public class KeycloakRoleService {
         putByCurrentName(authorization, current.name(), nextName, nextDescription);
     }
 
+    /**
+     * Realm roles do not have an enabled flag in Keycloak, so deletion is physical.
+     */
+    public void delete(String authorization, String id) {
+        RoleResponse current = getById(authorization, id);
+        execute(() -> {
+            keycloakWebClient.delete()
+                    .uri(roleUri(current.name()))
+                    .header(HttpHeaders.AUTHORIZATION, authorization)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .timeout(REQUEST_TIMEOUT)
+                    .block();
+            return null;
+        });
+    }
+
+    public void assignToUser(String authorization, String userId, String roleId) {
+        sendMapping(HttpMethod.POST, authorization, userId, getById(authorization, roleId));
+    }
+
+    public void unassignFromUser(String authorization, String userId, String roleId) {
+        sendMapping(HttpMethod.DELETE, authorization, userId, getById(authorization, roleId));
+    }
+
+    private void sendMapping(
+            HttpMethod method,
+            String authorization,
+            String userId,
+            RoleResponse role
+    ) {
+        execute(() -> {
+            keycloakWebClient.method(method)
+                    .uri(mappingUri(userId))
+                    .header(HttpHeaders.AUTHORIZATION, authorization)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(List.of(role))
+                    .retrieve()
+                    .toBodilessEntity()
+                    .timeout(REQUEST_TIMEOUT)
+                    .block();
+            return null;
+        });
+    }
+
     private RoleResponse getByName(String authorization, String name) {
         return execute(() -> keycloakWebClient.get()
                 .uri(roleUri(name))
@@ -141,6 +187,14 @@ public class KeycloakRoleService {
     private URI roleUri(String name) {
         return UriComponentsBuilder.fromUriString(properties.getAdminRolesUrl())
                 .pathSegment(name)
+                .build()
+                .encode()
+                .toUri();
+    }
+
+    private URI mappingUri(String userId) {
+        return UriComponentsBuilder.fromUriString(properties.getAdminUsersUrl())
+                .pathSegment(userId, "role-mappings", "realm")
                 .build()
                 .encode()
                 .toUri();

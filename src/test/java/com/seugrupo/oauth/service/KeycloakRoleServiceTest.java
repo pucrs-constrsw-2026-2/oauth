@@ -223,6 +223,82 @@ class KeycloakRoleServiceTest {
         assertThat(requests).hasSize(1);
     }
 
+    @Test
+    void deleteResolveIdEDeletaPeloNomeAtual() {
+        response(200, rolesJson());
+        response(204, "");
+
+        service.delete("Bearer access", "r-1");
+
+        assertThat(requests).hasSize(2);
+        assertThat(lastRequest.get().method()).isEqualTo("DELETE");
+        assertThat(lastRequest.get().path()).isEqualTo("/admin/realms/constrsw/roles/teacher");
+        assertThat(lastRequest.get().authorization()).isEqualTo("Bearer access");
+    }
+
+    @Test
+    void assignEnviaArrayComRepresentacaoCompletaDaRole() throws Exception {
+        service.assignToUser("Bearer access", "u-1", "r-1");
+
+        assertThat(requests).hasSize(2);
+        assertThat(lastRequest.get().method()).isEqualTo("POST");
+        assertThat(lastRequest.get().path()).isEqualTo(
+                "/admin/realms/constrsw/users/u-1/role-mappings/realm");
+        assertThat(lastRequest.get().authorization()).isEqualTo("Bearer access");
+        assertThat(objectMapper.readTree(lastRequest.get().rawBody())).isEqualTo(
+                objectMapper.readTree("""
+                        [{"id":"r-1","name":"teacher","description":"Docente",
+                          "composite":false,"clientRole":false,"containerId":"constrsw"}]
+                        """));
+    }
+
+    @Test
+    void unassignEnviaArrayComRepresentacaoCompletaDaRole() throws Exception {
+        service.unassignFromUser("Bearer access", "u-1", "r-1");
+
+        assertThat(requests).hasSize(2);
+        assertThat(lastRequest.get().method()).isEqualTo("DELETE");
+        assertThat(lastRequest.get().path()).isEqualTo(
+                "/admin/realms/constrsw/users/u-1/role-mappings/realm");
+        assertThat(objectMapper.readTree(lastRequest.get().rawBody())).isEqualTo(
+                objectMapper.readTree("""
+                        [{"id":"r-1","name":"teacher","description":"Docente",
+                          "composite":false,"clientRole":false,"containerId":"constrsw"}]
+                        """));
+    }
+
+    @Test
+    void userInexistenteOuSemPermissaoMapeiaErro() {
+        response(200, rolesJson());
+        response(404, "{\"error\":\"not found\",\"detail\":\"internal\"}");
+        assertThatThrownBy(() -> service.assignToUser("Bearer access", "missing", "r-1"))
+                .isInstanceOfSatisfying(OAuthApiException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(ex.getErrorCode()).isEqualTo("OA-404");
+                    assertThat(ex.getErrorSource()).isEqualTo("OAuthAPI.Roles");
+                });
+
+        response(200, rolesJson());
+        response(403, "{\"error\":\"forbidden\",\"detail\":\"internal\"}");
+        assertThatThrownBy(() -> service.unassignFromUser("Bearer access", "u-1", "r-1"))
+                .isInstanceOfSatisfying(OAuthApiException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(ex.getErrorCode()).isEqualTo("OA-403");
+                    assertThat(ex.getErrorSource()).isEqualTo("OAuthAPI.Roles");
+                });
+    }
+
+    @Test
+    void roleInexistenteNaoFazMappingRequest() {
+        assertThatThrownBy(() -> service.assignToUser("Bearer access", "u-1", "missing"))
+                .isInstanceOfSatisfying(OAuthApiException.class, ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(ex.getErrorCode()).isEqualTo("OA-404");
+                    assertThat(ex.getErrorSource()).isEqualTo("OAuthAPI.Roles");
+                });
+        assertThat(requests).hasSize(1);
+    }
+
     private RoleResponse role(String id, String name, String description) {
         return new RoleResponse(id, name, description, false, false, "constrsw");
     }
@@ -239,7 +315,7 @@ class KeycloakRoleServiceTest {
                 exchange.getRequestURI().getQuery(),
                 exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION),
                 rawBody,
-                rawBody.isBlank() ? Map.of() : objectMapper.readValue(
+                rawBody.isBlank() || rawBody.trim().startsWith("[") ? Map.of() : objectMapper.readValue(
                         rawBody, new TypeReference<Map<String, Object>>() {
                         })));
         requests.add(lastRequest.get());

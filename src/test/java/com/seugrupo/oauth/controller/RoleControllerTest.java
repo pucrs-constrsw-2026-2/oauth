@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -131,5 +132,15 @@ class RoleControllerTest {
                 .andExpect(content().string(""));
 
         verify(roleService).patch(eq("Bearer access"), eq("r-1"), any(PatchRoleRequest.class));
+    }
+
+    @Test
+    void deleteRetorna204SemCorpo() throws Exception {
+        mockMvc.perform(delete("/roles/r-1")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        verify(roleService).delete("Bearer access", "r-1");
     }
 }
