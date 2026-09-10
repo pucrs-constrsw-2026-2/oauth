@@ -1,4 +1,5 @@
 import { OaException } from '../errors';
+import { KeycloakAdminClient } from '../common/keycloak-admin.client';
 import { KeycloakSettingsService } from '../config';
 import { KeycloakAdminService } from './keycloak-admin.service';
 
@@ -25,7 +26,8 @@ describe('KeycloakAdminService', () => {
   let fetchMock: jest.Spied<typeof fetch>;
 
   beforeEach(() => {
-    service = new KeycloakAdminService(settings);
+    // Real client: these tests exercise token handling and failure mapping too.
+    service = new KeycloakAdminService(new KeycloakAdminClient(settings), settings);
     fetchMock = jest.spyOn(global, 'fetch');
   });
 
@@ -59,19 +61,32 @@ describe('KeycloakAdminService', () => {
   });
 
   it('uses the client role mapping endpoint for assignment', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ access_token: 'admin-token' }))
-      .mockResolvedValueOnce(jsonResponse([{ id: 'client-uuid', clientId: 'oauth' }]))
-      .mockResolvedValueOnce(jsonResponse({ access_token: 'admin-token' }))
-      .mockResolvedValueOnce(jsonResponse([
-        { id: 'role-uuid', name: 'professor', clientRole: true, containerId: 'client-uuid' },
-      ]))
-      .mockResolvedValueOnce(jsonResponse({ access_token: 'admin-token' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'user-uuid' }))
-      .mockResolvedValueOnce(jsonResponse({ access_token: 'admin-token' }))
-      .mockResolvedValueOnce(jsonResponse([{ id: 'client-uuid', clientId: 'oauth' }]))
-      .mockResolvedValueOnce(jsonResponse({ access_token: 'admin-token' }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    // Routed by URL, not by call order: the client caches the admin token, so
+    // how many times it authenticates is an implementation detail this test
+    // should not encode.
+    fetchMock.mockImplementation((url) => {
+      const target = String(url);
+      if (target.includes('/protocol/openid-connect/token')) {
+        return Promise.resolve(jsonResponse({ access_token: 'admin-token' }));
+      }
+      if (target.includes('/clients?clientId=')) {
+        return Promise.resolve(jsonResponse([{ id: 'client-uuid', clientId: 'oauth' }]));
+      }
+      if (target.endsWith('/clients/client-uuid/roles')) {
+        return Promise.resolve(
+          jsonResponse([
+            { id: 'role-uuid', name: 'professor', clientRole: true, containerId: 'client-uuid' },
+          ]),
+        );
+      }
+      if (target.endsWith('/users/user-uuid')) {
+        return Promise.resolve(jsonResponse({ id: 'user-uuid' }));
+      }
+      if (target.endsWith('/users/user-uuid/role-mappings/clients/client-uuid')) {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.reject(new Error(`unexpected upstream call: ${target}`));
+    });
 
     await service.assignRole('user-uuid', 'professor');
 
@@ -79,6 +94,29 @@ describe('KeycloakAdminService', () => {
       'http://keycloak/admin/realms/constrsw/users/user-uuid/role-mappings/clients/client-uuid',
     );
     expect(fetchMock.mock.calls.at(-1)?.[1]).toMatchObject({ method: 'POST' });
+  });
+
+  it('authenticates once and reuses the admin token across calls', async () => {
+    fetchMock.mockImplementation((url) => {
+      const target = String(url);
+      if (target.includes('/protocol/openid-connect/token')) {
+        return Promise.resolve(
+          jsonResponse({ access_token: 'admin-token', expires_in: 300 }),
+        );
+      }
+      if (target.includes('/clients?clientId=')) {
+        return Promise.resolve(jsonResponse([{ id: 'client-uuid', clientId: 'oauth' }]));
+      }
+      return Promise.resolve(jsonResponse([]));
+    });
+
+    await service.listRoles();
+    await service.listRoles();
+
+    const tokenCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes('/protocol/openid-connect/token'),
+    );
+    expect(tokenCalls).toHaveLength(1);
   });
 });
 
