@@ -12,9 +12,6 @@ spring:
 
 keycloak:
   base-url: ${KEYCLOAK_SERVER_URL:http://localhost:8080}
-  # Alias para o KeycloakProperties do stash (com.constrsw.oauth.config) que
-  # espera "keycloak.url" em vez de "keycloak.base-url".
-  url: ${KEYCLOAK_SERVER_URL:http://localhost:8080}
   realm: ${KEYCLOAK_REALM:constrsw}
   client-id: ${KEYCLOAK_CLIENT_ID:oauth}
   client-secret: ${KEYCLOAK_CLIENT_SECRET:}

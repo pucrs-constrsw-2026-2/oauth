@@ -2,9 +2,10 @@
 
 Serviço oauth — ConstrSW 2026/2 — Grupo 04 (students)
 
-API REST em Java/Spring Boot 3.3 (Java 21) que encapsula a REST API do Keycloak
-para autenticação e gestão de usuários. Sobe junto com o Keycloak via
-`docker compose up` na raiz do repositório `base`.
+API REST em **Clean Architecture** sobre Java 21 / Spring Boot 3.3 que encapsula
+a REST API do Keycloak para autenticação (`POST /login`) e gestão de usuários
+(`CRUD /users`). Sobe junto com o Keycloak via `docker compose up` na raiz do
+repositório `base`.
 
 ---
 
@@ -22,7 +23,7 @@ Porta externa da API = `OAUTH_EXTERNAL_API_PORT` no `.env` da raiz (padrão `818
 
 ---
 
-## Escopo entregue (Users)
+## Escopo entregue (Users + Auth)
 
 Todas as rotas de **USERS** e **LOGIN** exigidas pelo enunciado estão
 implementadas, testadas end-to-end contra o Keycloak 26 e documentadas no
@@ -83,103 +84,172 @@ enunciado:
   "error_description": "Invalid e-mail (RFC 5322): nao-eh-email",
   "error_source": "OAuthAPI",
   "error_stack": [
-    { "type": "BadRequestException", "message": "Invalid e-mail (RFC 5322): nao-eh-email" }
+    { "type": "InvalidEmailException", "message": "Invalid e-mail (RFC 5322): nao-eh-email" }
   ]
 }
 ```
 
-- `error_code` = valor do HTTP status (`"400"`, `"401"`, `"403"`, `"404"`,
-  `"409"`, `"500"`)
+- `error_code` = valor do HTTP status (`"400"`, `"401"`, `"403"`, `"404"`, `"409"`, `"500"`, `"503"`)
 - `error_description` = mensagem do desenvolvedor
-- `error_source` = `"OAuthAPI"` (ou `"Keycloak"` quando repassamos um erro do
-  Keycloak)
+- `error_source` = `"OAuthAPI"`
 - `error_stack` = array de `{ type, message }` com a origem da falha
 
 ---
 
-## Arquitetura
+## Arquitetura — Clean Architecture
 
-Java 21 + Spring Boot 3.3.4, empacotado como fat-JAR e executado num container
-Alpine + JRE 21. RestTemplate + Apache HttpClient 5 para consumo do Keycloak.
-Spring Security como Resource Server valida o JWT emitido pelo Keycloak em
-cada request.
-
-Dois packages Java convivem no mesmo classpath:
+O código está organizado em três camadas concêntricas, com a **regra de
+dependência apontando sempre pra dentro**: `infrastructure` conhece
+`application`, `application` conhece `domain`, e o `domain` não conhece
+ninguém (nem Spring, nem HTTP, nem Keycloak).
 
 ```
-src/main/java/
-├── br/pucrs/constrsw/oauth/                (código do merge — camada de auth/base)
-│   ├── OauthApplication.java               (@SpringBootApplication único, scanBasePackages
-│   │                                        cobre também com.constrsw.oauth)
-│   ├── config/                             (KeycloakProperties, SecurityConfig,
-│   │                                        OpenApiConfig, AppConfig com RestTemplate bean)
-│   ├── controller/AuthController.java      (POST /login)
-│   ├── dto/                                (LoginResponse, ErrorResponse, ErrorStackEntry)
-│   ├── exception/                          (OAuthApiException, GlobalExceptionHandler)
-│   ├── security/                           (CustomAuthenticationEntryPoint,
-│   │                                        CustomAccessDeniedHandler)
-│   └── service/                            (KeycloakAuthService, KeycloakAdminService)
-│
-└── com/constrsw/oauth/                     (código do stash — CRUD de Users)
-    ├── OAuthApplication.java               (main() legacy, SEM @SpringBootApplication;
-    │                                        preservado como referência)
-    ├── config/                             (LegacyKeycloakProperties, RestTemplateConfig,
-    │                                        OpenApiConfig sem @Configuration)
-    ├── controller/                         (UserController — /users; LoginController legacy
-    │                                        sem @RestController pra não colidir com AuthController)
-    ├── dto/                                (UserCreateRequest, UserUpdateRequest, UserResponse,
-    │                                        PasswordUpdateRequest, LoginResponse, ErrorResponse)
-    ├── exception/                          (ApiException + subclasses BadRequest/Conflict/
-    │                                        NotFound/Unauthorized/Forbidden/KeycloakUnavailable;
-    │                                        LegacyGlobalExceptionHandler com @Order HIGHEST
-    │                                        e basePackages="com.constrsw.oauth")
-    ├── service/KeycloakService.java        (chama Admin REST API do Keycloak com o Bearer
-    │                                        que veio no header, para o CRUD de users)
-    └── util/EmailValidator.java            (RFC 5322)
+                  ┌─────────────────────────────────────────────┐
+                  │           infrastructure/                    │
+                  │                                              │
+                  │   adapter/in/rest ──► use case (in port)     │
+                  │   adapter/out/keycloak ◄─ gateway (out port) │
+                  │   config / security / util                   │
+                  │            │                                 │
+                  │            ▼                                 │
+                  │   ┌────────────────────────────┐             │
+                  │   │      application/          │             │
+                  │   │                            │             │
+                  │   │  port/in/  use case ifs    │             │
+                  │   │  port/out/ gateway ifs     │             │
+                  │   │  usecase/  services @Service│            │
+                  │   │            │               │             │
+                  │   │            ▼               │             │
+                  │   │   ┌────────────────┐       │             │
+                  │   │   │   domain/      │       │             │
+                  │   │   │                │       │             │
+                  │   │   │ model/  User,  │       │             │
+                  │   │   │         AuthTokens,    │             │
+                  │   │   │         Credentials,   │             │
+                  │   │   │         NewUser, UserUpdate         │
+                  │   │   │ exception/ InvalidEmail,│           │
+                  │   │   │         UserNotFound,  │             │
+                  │   │   │         UserAlreadyExists,           │
+                  │   │   │         InvalidCredentials,          │
+                  │   │   │         AccessDenied, ...            │
+                  │   │   └────────────────┘       │             │
+                  │   └────────────────────────────┘             │
+                  └─────────────────────────────────────────────┘
 ```
 
-### Por que dois packages?
+### Camadas
 
-Este submódulo passou por um `merge` da branch base (`br.pucrs.constrsw.oauth`
-— login + security + envelope de erro do enunciado) sobre uma implementação
-anterior do stash (`com.constrsw.oauth` — CRUD completo de Users). Em vez de
-reescrever um deles, os dois convivem:
+**`domain/`** — Puro Java, zero Spring, zero anotações Jakarta/HTTP.
 
-- `br.pucrs...OauthApplication` é a única `@SpringBootApplication`, com
-  `scanBasePackages` para os dois roots.
-- Colisões por nome de bean foram resolvidas renomeando `KeycloakProperties` →
-  `LegacyKeycloakProperties` e `GlobalExceptionHandler` →
-  `LegacyGlobalExceptionHandler` no lado do stash.
-- Colisões de mapping (dois `POST /login`) e de bean (dois `OpenAPI`) foram
-  resolvidas neutralizando as anotações Spring do lado do stash
-  (`@RestController` e `@Configuration` foram removidos das duplicatas).
-- O `LegacyGlobalExceptionHandler` tem `@Order(HIGHEST_PRECEDENCE)` e
-  `basePackages="com.constrsw.oauth"` para pegar as exceções custom do stash
-  antes do handler global do merge, e reutiliza o `ErrorResponse` /
-  `ErrorStackEntry` do merge para manter o mesmo formato de envelope em toda
-  a API.
+- `model/` — entidades e value objects (`User`, `AuthTokens`, `Credentials`,
+  `NewUser`, `UserUpdate`)
+- `exception/` — hierarquia de `DomainException` (`InvalidEmailException`,
+  `InvalidCredentialsException`, `UserNotFoundException`,
+  `UserAlreadyExistsException`, `AccessDeniedException`,
+  `AuthorizationRequiredException`, `InvalidInputException`,
+  `IdentityProviderUnavailableException`)
 
-### Fluxo de uma request `/users`
+**`application/`** — Casos de uso + ports (interfaces).
+
+- `port/in/` — interfaces dos casos de uso (`LoginUseCase`,
+  `CreateUserUseCase`, `ListUsersUseCase`, `GetUserUseCase`,
+  `UpdateUserUseCase`, `UpdatePasswordUseCase`, `DisableUserUseCase`)
+- `port/out/` — interfaces para infraestrutura externa (`AuthGateway`,
+  `UserGateway`)
+- `usecase/` — implementações (`LoginService`, `CreateUserService`,
+  `ListUsersService`, `GetUserService`, `UpdateUserService`,
+  `UpdatePasswordService`, `DisableUserService`) — cada uma implementa a
+  interface do `port/in/` correspondente e depende só de ports (via injeção
+  de construtor)
+
+**`infrastructure/`** — Adapters + configuração de framework.
+
+- `config/` — `KeycloakProperties` (`@ConfigurationProperties`),
+  `HttpClientConfig` (Apache HttpClient 5 + RestTemplate no-op error handler),
+  `SecurityConfig` (Spring Security como Resource Server JWT),
+  `OpenApiConfig` (SpringDoc)
+- `security/` — `CustomAuthenticationEntryPoint` (401) e
+  `CustomAccessDeniedHandler` (403), ambos serializam o envelope padrão
+- `util/` — `EmailValidator` (regex RFC 5322)
+- `adapter/in/rest/` — **entrada HTTP**: `AuthRestController` (POST /login),
+  `UserRestController` (CRUD /users), `ApiExceptionHandler`
+  (`@RestControllerAdvice` que traduz domain exceptions em HTTP status)
+- `adapter/in/rest/dto/` — DTOs HTTP (`LoginResponseDto`,
+  `UserCreateRequestDto`, `UserUpdateRequestDto`, `UserResponseDto`,
+  `PasswordUpdateRequestDto`, `ErrorResponseDto`, `ErrorStackEntryDto`),
+  cada um com método `.toDomain()` / `.fromDomain()`
+- `adapter/out/keycloak/` — implementações concretas dos ports out:
+  `KeycloakAuthGateway` (implementa `AuthGateway`) e `KeycloakUserGateway`
+  (implementa `UserGateway`). São os únicos pontos do código que conhecem
+  Keycloak.
+
+### Regra de dependência (Clean Architecture)
+
+- `domain` **não importa NADA** de fora
+- `application` importa **só de `domain`** (nunca de `infrastructure`)
+- `infrastructure` importa de `domain` **e** de `application`
+- Anotações Spring (`@Service`, `@RestController`, `@Component`,
+  `@Configuration`) só aparecem em `application/usecase/` (para o Spring
+  registrar as implementações dos ports in) e em `infrastructure/`
+
+### Fluxo de uma request `POST /users`
 
 ```
-Client ──> Tomcat ──> Spring Security (valida Bearer JWT contra o Keycloak)
-                                    │
-                                    ▼
-                         UserController (com.constrsw...)
-                                    │
-                                    ▼
-                         KeycloakService (com.constrsw...)
-                                    │  RestTemplate + HttpClient5
-                                    ▼
-                         Keycloak Admin REST API
-                         (/admin/realms/constrsw/users...)
+┌─────────────┐  1. HTTP POST /users
+│   Cliente   │──────────────────────────────────┐
+└─────────────┘                                  ▼
+                                    ┌──────────────────────────┐
+                                    │  Spring Security         │
+                                    │  (valida Bearer JWT)     │
+                                    └────────────┬─────────────┘
+                                                 │ 2. autenticado
+                                                 ▼
+                                    ┌──────────────────────────┐
+                                    │  UserRestController      │  (infrastructure/adapter/in)
+                                    │  request → NewUser       │
+                                    └────────────┬─────────────┘
+                                                 │ 3. execute(bearer, newUser)
+                                                 ▼
+                                    ┌──────────────────────────┐
+                                    │  CreateUserService       │  (application/usecase, impl CreateUserUseCase)
+                                    │  valida email RFC 5322   │
+                                    └────────────┬─────────────┘
+                                                 │ 4. userGateway.create(...)
+                                                 ▼
+                                    ┌──────────────────────────┐
+                                    │  UserGateway (interface) │  (application/port/out)
+                                    └────────────┬─────────────┘
+                                                 │ Spring injeta a impl
+                                                 ▼
+                                    ┌──────────────────────────┐
+                                    │  KeycloakUserGateway     │  (infrastructure/adapter/out)
+                                    │  HTTP POST admin/realms/ │
+                                    │       constrsw/users     │
+                                    └────────────┬─────────────┘
+                                                 │
+                                                 ▼
+                                    ┌──────────────────────────┐
+                                    │       Keycloak           │
+                                    │   Admin REST API         │
+                                    └──────────────────────────┘
 ```
 
-Nenhuma request para `/users` cria/administra usuário sem o Bearer — o próprio
-serviço repassa o `Authorization` recebido para a Admin API do Keycloak, que
-decide se o usuário representado pelo token tem permissão (`manage-users` no
-realm `constrsw`). O usuário `admin@pucrs.br` já é seedado no realm-export com
-essa role.
+O **domain** (`User`, `NewUser`) atravessa todas as camadas sem depender de
+nada externo. Se amanhã quiséssemos trocar Keycloak por Auth0/Okta, o único
+código que precisaria mudar seria `infrastructure/adapter/out/keycloak/` —
+basta criar `Auth0UserGateway implements UserGateway` e trocar a bean; nada
+em `application/` ou `domain/` seria tocado.
+
+### Por que Clean Architecture aqui?
+
+- **Testabilidade**: um `CreateUserService` pode ser testado com um mock de
+  `UserGateway`, sem subir Spring nem Keycloak
+- **Trocabilidade**: Keycloak é detalhe de infraestrutura, não regra de
+  negócio — poderia ser substituído por outro Identity Provider trocando só
+  o gateway
+- **Legibilidade**: o que a API faz (use cases) fica claro em
+  `application/usecase/`, sem se misturar com como HTTP funciona ou como o
+  Keycloak responde
 
 ---
 
@@ -193,11 +263,11 @@ Na raiz do repositório `base`:
 docker compose up -d
 ```
 
-Depois, verifique:
+Verificar:
 
 ```bash
-docker compose ps            # keycloak e oauth devem ficar "healthy"
-curl http://localhost:8181/actuator/health   # {"status":"UP"}
+docker compose ps                                # keycloak e oauth "healthy"
+curl http://localhost:8181/actuator/health       # {"status":"UP"}
 ```
 
 ### Só este serviço
@@ -223,12 +293,12 @@ docker run -p 3001:3001 \
 
 | Variável | Descrição | Default |
 |---|---|---|
-| `OAUTH_INTERNAL_API_PORT` | Porta que o Spring Boot escuta dentro do container | `8080` |
+| `OAUTH_INTERNAL_API_PORT` | Porta interna do Spring Boot | `8080` |
 | `KEYCLOAK_SERVER_URL` | URL interna do Keycloak (nome do serviço na network) | `http://localhost:8080` |
 | `KEYCLOAK_REALM` | Realm usado pela aplicação | `constrsw` |
 | `KEYCLOAK_CLIENT_ID` | Client confidencial cadastrado no realm | `oauth` |
 | `KEYCLOAK_CLIENT_SECRET` | Secret do client `oauth` | *(obrigatório)* |
-| `KEYCLOAK_ADMIN` | Usuário admin bootstrap do Keycloak (realm `master`) | `admin` |
+| `KEYCLOAK_ADMIN` | Admin bootstrap do Keycloak (realm `master`) | `admin` |
 | `KEYCLOAK_ADMIN_PASSWORD` | Senha do admin bootstrap do Keycloak | *(obrigatório)* |
 
 O `docker-compose.yml` da raiz já injeta todas essas variáveis a partir do
@@ -236,7 +306,7 @@ O `docker-compose.yml` da raiz já injeta todas essas variáveis a partir do
 
 ---
 
-## Teste rápido (cmd.exe / PowerShell)
+## Teste rápido (PowerShell)
 
 ```powershell
 # 1. Token
@@ -254,9 +324,6 @@ curl.exe -s -X POST http://localhost:8181/users `
     --data "@body.json"
 ```
 
-Passo a passo completo (POST/GET/PUT/PATCH/DELETE + testes de erro) no chat
-de desenvolvimento do grupo.
-
 ---
 
 ## Nota sobre versão do Keycloak
@@ -264,15 +331,19 @@ de desenvolvimento do grupo.
 O enunciado descreve as rotas do Keycloak com prefixo `/auth`
 (`{{base-keycloak-url}}/auth/realms/...`). O Keycloak deste projeto é o **v26**
 (Quarkus), que **removeu o context-path `/auth`** desde a v17. As URLs
-montadas por `KeycloakProperties.tokenEndpoint()` e por `KeycloakService`
-(admin API) refletem essa mudança — `/realms/...` em vez de `/auth/realms/...`.
-Não é desvio do enunciado, é ajuste de versão.
+montadas por `KeycloakProperties` refletem essa mudança — `/realms/...` em
+vez de `/auth/realms/...`. Não é desvio do enunciado, é ajuste de versão.
 
 ---
 
 ## Roadmap (fora do escopo desta entrega)
 
-- Rotas de **Roles** (`POST/GET/GET-id/PUT/PATCH/DELETE /roles`)
+- Rotas de **Roles** (`POST/GET/GET-id/PUT/PATCH/DELETE /roles`) — segue o
+  mesmo padrão Clean: criar `Role` no domain, `RoleGateway` no
+  `application/port/out/`, casos de uso em `application/usecase/`,
+  `KeycloakRoleGateway` como adapter out, `RoleRestController` como adapter in
 - Endpoints para **atribuir/remover role** de um usuário
+- Testes unitários (`application/usecase/*` são triviais de testar com mock
+  do gateway) e testes de integração (`@SpringBootTest` sobre os controllers)
 - Collection Postman consolidada
 - Tag de release no GitHub + zip para entrega no Moodle
