@@ -8,7 +8,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const settings = app.get(KeycloakSettingsService);
 
-  await app.listen(settings.internalApiPort);
+  await app.listen(settings.internalApiPort, '0.0.0.0');
 
   Logger.log(
     `oauth listening on port ${settings.internalApiPort} — ` +

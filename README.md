@@ -174,3 +174,70 @@ deliverable.
 
 Docker image, `GET /health` and running the full compose stack are covered by
 stories 1.2 and 1.3.
+
+## Health and Docker
+
+`GET /health` returns `200` with `{ "status": "ok" }`. The process listens on
+`OAUTH_INTERNAL_API_PORT` and binds to `0.0.0.0`. The image is built from this
+directory's multi-stage `Dockerfile`; the root compose file remains professor-owned.
+
+To run the professor stack, create the external volume first:
+
+```bash
+docker volume create constrsw-keycloak-data
+docker compose up -d keycloak oauth
+```
+
+The Keycloak console is available at `http://localhost:8081` and the oauth API
+at `http://localhost:8181`. The realm import runs only when the realm is absent
+from the existing volume. Our future `POST /login` contract remains
+`application/x-www-form-urlencoded` with HTTP `200`, even if the Keycloak README
+shows a JSON example.
+
+## Roles and assignments
+
+All role routes require the shared Bearer guard **and the `administrator` client
+role**. Users with a valid token but without `administrator` receive `403`.
+The routes operate on **client roles** of the configured `oauth` client, never realm roles. A role representation is
+the Keycloak object with at least `id` and `name`; `description` and
+`attributes` are also accepted.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/roles` | Create a client role |
+| `GET` | `/roles` | List client roles |
+| `GET` | `/roles/:id` | Get a client role by UUID |
+| `PUT` | `/roles/:id` | Replace role attributes |
+| `PATCH` | `/roles/:id` | Partially update role attributes |
+| `DELETE` | `/roles/:id` | Logical delete |
+| `POST` | `/users/:id/roles` | Assign by `roleId`, `roleName`, or `name` |
+| `DELETE` | `/users/:id/roles/:roleId` | Unassign a client role |
+
+The canonical role names are `administrator`, `coordinator`, `professor`, and
+`student`. They must not be renamed because the Authorization Services policies
+depend on them. Logical deletion never calls Keycloak DELETE; it sets the client
+role attribute `inactive=true` and is idempotent.
+
+Authorization checks `resource_access.oauth.roles` and accepts `administrator`
+there; `realm_access.roles` is also accepted for compatibility with Keycloak
+token mappings.
+
+`PUT /roles/:id` requires a complete replacement body with `name` and may
+replace `description` and `attributes`. `PATCH /roles/:id` accepts a non-empty
+subset of those mutable fields and preserves fields that are omitted.
+
+All errors use the OA envelope:
+
+```json
+{
+  "error_code": "OA-400",
+  "error_description": "...",
+  "error_source": "OAuthAPI",
+  "error_stack": [{ "description": "..." }]
+}
+```
+
+The global error filter covers validation, Bearer, Keycloak upstream, and
+unexpected application errors. The caller authorization decision remains
+delegated to the current Bearer/Admin API arrangement and is intentionally
+tracked separately.

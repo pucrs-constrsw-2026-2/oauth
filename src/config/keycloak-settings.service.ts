@@ -42,6 +42,14 @@ export class KeycloakSettingsService {
     return this.settings.clientSecret;
   }
 
+  get adminUser(): string | undefined {
+    return this.settings.adminUser;
+  }
+
+  get adminPassword(): string | undefined {
+    return this.settings.adminPassword;
+  }
+
   get internalApiPort(): number {
     return this.service.internalApiPort;
   }
