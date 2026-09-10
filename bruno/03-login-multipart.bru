@@ -18,6 +18,7 @@ body:multipart-form {
 script:post-response {
   if (res.getStatus() === 201) {
     const body = res.getBody();
+    bru.setVar("access_token", body.access_token);
     bru.setVar("accessToken", body.access_token);
     bru.setVar("refreshToken", body.refresh_token);
   }

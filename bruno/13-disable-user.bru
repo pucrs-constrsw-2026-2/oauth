@@ -1,0 +1,27 @@
+meta {
+  name: 13 - Disable User
+  type: http
+  seq: 13
+}
+
+delete {
+  url: {{baseUrl}}/users/{{user_id}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+tests {
+  test("desabilita usuario com resposta vazia", function () {
+    expect(res.getStatus()).to.equal(204);
+    expect(res.getBody()).to.equal("");
+  });
+}
+
+docs {
+  DELETE de usuario e logico. Execute 10 novamente depois deste request para
+  confirmar enabled == false.
+}

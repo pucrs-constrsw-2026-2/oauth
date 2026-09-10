@@ -1,0 +1,53 @@
+meta {
+  name: 08 - Create User
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "pessoa4.user@example.com",
+    "password": "pessoa4-password",
+    "first-name": "Pessoa",
+    "last-name": "Quatro"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("user_id", res.getBody().id);
+  }
+}
+
+tests {
+  test("cria usuario habilitado e salva o id", function () {
+    const body = res.getBody();
+
+    expect(res.getStatus()).to.equal(201);
+    expect(body).to.include({
+      username: "pessoa4.user@example.com",
+      "first-name": "Pessoa",
+      "last-name": "Quatro",
+      enabled: true
+    });
+    expect(body).not.to.have.property("password");
+    expect(bru.getVar("user_id")).to.equal(body.id);
+  });
+}
+
+docs {
+  Cria o usuario que sera usado nos requests seguintes e salva o id como
+  variavel temporaria. Reexecutar este request depois da primeira execucao
+  deve retornar 409 por username duplicado.
+}

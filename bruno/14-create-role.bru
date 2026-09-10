@@ -1,0 +1,46 @@
+meta {
+  name: 14 - Create Role
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/roles
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "{{role_name}}",
+    "description": "Role de teste da Pessoa 4"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("role_id", res.getBody().id);
+  }
+}
+
+tests {
+  test("cria role e salva o id", function () {
+    const body = res.getBody();
+
+    expect(res.getStatus()).to.equal(201);
+    expect(body.name).to.equal(bru.getVar("role_name"));
+    expect(body).to.have.property("id").that.is.a("string").and.not.empty;
+    expect(bru.getVar("role_id")).to.equal(body.id);
+  });
+}
+
+docs {
+  Cria o realm role de teste e salva o id retornado para os requests de
+  consulta, update e vinculo. Reexecutar depois da primeira execucao deve
+  retornar 409 por nome duplicado.
+}

@@ -1,0 +1,24 @@
+meta {
+  name: 16 - Get Role
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{baseUrl}}/roles/{{role_id}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+}
+
+tests {
+  test("recupera role por id publico", function () {
+    const body = res.getBody();
+
+    expect(res.getStatus()).to.equal(200);
+    expect(body.id).to.equal(bru.getVar("role_id"));
+  });
+}
