@@ -8,6 +8,8 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const settings = app.get(KeycloakSettingsService);
 
+  // 0.0.0.0 so the compose healthcheck can reach the port from outside the
+  // process namespace; the OA filter is registered in AppModule.
   await app.listen(settings.internalApiPort, '0.0.0.0');
 
   Logger.log(

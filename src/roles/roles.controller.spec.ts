@@ -1,5 +1,6 @@
 import { HttpStatus } from '@nestjs/common';
 
+import { OaException } from '../errors';
 import { KeycloakAdminService } from './keycloak-admin.service';
 import { RolesController } from './roles.controller';
 
@@ -29,12 +30,18 @@ describe('RolesController', () => {
   });
 
   it('rejects an invalid create body with the OA envelope', async () => {
-    await expect(controller.create({})).rejects.toMatchObject({
-      status: HttpStatus.BAD_REQUEST,
-      response: expect.objectContaining({
-        error_code: 'OA-400',
-        error_source: 'OAuthAPI',
-      }),
+    let error: OaException | undefined;
+    try {
+      await controller.create({});
+    } catch (thrown) {
+      error = thrown as OaException;
+    }
+
+    expect(error).toBeInstanceOf(OaException);
+    expect(error?.getStatus()).toBe(HttpStatus.BAD_REQUEST);
+    expect(error?.toEnvelope()).toMatchObject({
+      error_code: 'OA-400',
+      error_source: 'OAuthAPI',
     });
   });
 

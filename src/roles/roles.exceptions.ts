@@ -1,34 +1,28 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
 
-import { RoleApiErrorBody } from './role.types';
+import { OaException, OaErrorMapper } from '../errors';
 
-export class RoleApiException extends HttpException {
-  constructor(status: HttpStatus, code: string, description: string) {
-    const body: RoleApiErrorBody = {
-      error_code: code,
-      error_description: description,
-      error_source: 'OAuthAPI',
-      error_stack: [{ code, description }],
-    };
-    super(body, status);
-  }
+/**
+ * Role failures use the shared OA envelope from Story 3.1 rather than a
+ * private one. A local `HttpException` carrying an already-built body would
+ * lose its description in the global filter, which reads `message`.
+ */
+
+export function roleBadRequest(description: string): OaException {
+  return OaErrorMapper.badRequest(description);
 }
 
-export function roleBadRequest(description: string): RoleApiException {
-  return new RoleApiException(HttpStatus.BAD_REQUEST, 'OA-400', description);
+export function roleNotFound(description: string): OaException {
+  return OaErrorMapper.notFound(description);
 }
 
-export function roleNotFound(description: string): RoleApiException {
-  return new RoleApiException(HttpStatus.NOT_FOUND, 'OA-404', description);
-}
-
-export function roleConflict(description: string): RoleApiException {
-  return new RoleApiException(HttpStatus.CONFLICT, 'OA-409', description);
+export function roleConflict(description: string): OaException {
+  return OaErrorMapper.conflict(description);
 }
 
 export function roleUpstreamFailure(
   status: HttpStatus,
   description: string,
-): RoleApiException {
-  return new RoleApiException(status, `OA-${status}`, description);
+): OaException {
+  return OaErrorMapper.fromStatus(status, description);
 }
