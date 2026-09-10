@@ -1,7 +1,6 @@
 package com.constrsw.oauth.config;
 
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -9,7 +8,9 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 
-@Configuration
+// @Configuration removido apos merge com origin/grupo04 para nao duplicar o
+// bean OpenAPI ja registrado por br.pucrs.constrsw.oauth.config.OpenApiConfig.
+// Codigo preservado do stash.
 public class OpenApiConfig {
 
     @Bean

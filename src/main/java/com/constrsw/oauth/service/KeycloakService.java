@@ -25,7 +25,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.constrsw.oauth.config.KeycloakProperties;
+import com.constrsw.oauth.config.LegacyKeycloakProperties;
 import com.constrsw.oauth.dto.LoginResponse;
 import com.constrsw.oauth.dto.UserCreateRequest;
 import com.constrsw.oauth.dto.UserResponse;
@@ -56,10 +56,10 @@ public class KeycloakService {
 
     private static final Logger log = LoggerFactory.getLogger(KeycloakService.class);
 
-    private final KeycloakProperties props;
+    private final LegacyKeycloakProperties props;
     private final RestTemplate rest;
 
-    public KeycloakService(KeycloakProperties props, RestTemplate keycloakRestTemplate) {
+    public KeycloakService(LegacyKeycloakProperties props, RestTemplate keycloakRestTemplate) {
         this.props = props;
         this.rest = keycloakRestTemplate;
     }

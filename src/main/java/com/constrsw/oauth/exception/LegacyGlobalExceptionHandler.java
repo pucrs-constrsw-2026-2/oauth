@@ -18,9 +18,13 @@ import jakarta.servlet.http.HttpServletRequest;
 /**
  * Traducao centralizada de excecoes em respostas HTTP + body ErrorResponse.
  * Alinhado com os status codes especificados no enunciado (400/401/403/404/409).
+ *
+ * NOTA: apos merge com origin/grupo04, escopado com basePackages para so
+ * atender excecoes lancadas por controllers de com.constrsw.oauth (ex: /users).
+ * Excecoes de br.pucrs.constrsw.oauth continuam indo pro handler do merge.
  */
-@RestControllerAdvice
-public class GlobalExceptionHandler {
+@RestControllerAdvice(basePackages = "com.constrsw.oauth")
+public class LegacyGlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ErrorResponse> handleApi(ApiException ex, HttpServletRequest req) {

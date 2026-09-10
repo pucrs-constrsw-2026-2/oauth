@@ -5,7 +5,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
 
 import com.constrsw.oauth.dto.LoginResponse;
 import com.constrsw.oauth.exception.BadRequestException;
@@ -21,8 +20,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * POST /login - autenticacao de usuario via password grant do Keycloak.
  * Aceita form-data (multipart) e application/x-www-form-urlencoded, como pede
  * o enunciado ("form-data incluindo username, password").
+ *
+ * NOTA: @RestController removido apos merge com origin/grupo04 para evitar
+ * "Ambiguous mapping" no POST /login (br.pucrs.constrsw.oauth.controller.
+ * AuthController do merge tem prioridade sobre este). Codigo mantido para
+ * referencia.
  */
-@RestController
 @RequestMapping("/login")
 @Tag(name = "Auth", description = "Autenticacao de usuarios")
 @SecurityRequirements

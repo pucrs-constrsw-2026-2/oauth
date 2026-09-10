@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConfigurationProperties(prefix = "keycloak")
-public class KeycloakProperties {
+public class LegacyKeycloakProperties {
 
     private String url;
     private String realm;
