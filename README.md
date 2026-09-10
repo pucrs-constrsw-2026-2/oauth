@@ -84,6 +84,52 @@ constructor(private readonly keycloak: KeycloakSettingsService) {}
 // this.keycloak.adminPath('users')
 ```
 
+## `POST /login`
+
+Exchanges username/password for Keycloak tokens (Story 2.1, CAP-1). No
+`Authorization` header required.
+
+- **Body**: `multipart/form-data` **or** `application/x-www-form-urlencoded` —
+  `username`, `password`. Any other content-type is rejected. The T1 brief's
+  form also lists `client_id` and `grant_type`; if the caller sends them they
+  are **accepted and silently ignored** — the client credentials sent to
+  Keycloak always come from `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET`,
+  never from the request.
+- **Success**: `200` (not `201` — nothing is created) with JSON:
+
+  ```json
+  {
+    "token_type": "Bearer",
+    "access_token": "...",
+    "expires_in": 300,
+    "refresh_token": "...",
+    "referesh_expires_in": 1800
+  }
+  ```
+
+  `referesh_expires_in` keeps the brief's spelling on purpose — it is mapped
+  from Keycloak's `refresh_expires_in`.
+- **Errors**: `400` when `username`/`password` is missing/blank or the
+  content-type is unsupported (local `OA-400`, checked before any Keycloak
+  call); `401` when Keycloak rejects the credentials (`error_code` relays
+  Keycloak's `error`, typically `invalid_grant`). Both use the OA envelope
+  above.
+
+## `POST /refresh`
+
+Trades a valid `refresh_token` for a new token pair without re-entering the
+password (Story 2.2, CAP-7). No `Authorization` header required — the refresh
+token itself is the credential.
+
+- **Body**: `multipart/form-data` **or** `application/x-www-form-urlencoded` —
+  `refresh_token` only.
+- **Success**: `200` with the same field set as `/login` (`token_type`,
+  `access_token`, `expires_in`, `refresh_token`, `referesh_expires_in` when
+  Keycloak returns a refresh expiry).
+- **Errors**: `400` when `refresh_token` is missing/blank or the content-type
+  is unsupported; `401` when the refresh token is invalid or expired
+  (`error_code` relays Keycloak's `error`, typically `invalid_grant`).
+
 ## Authentication on protected routes
 
 Routes under `/users` and `/roles` require the caller's Keycloak access token:
@@ -146,6 +192,214 @@ The guard throws the standard Nest exceptions. Once the uniform error envelope
 (Story 3.1) registers its exception filter, those responses are formatted into
 `{ error_code, error_description, error_source, error_stack }` with no change
 required here.
+
+## Error format (uniform envelope)
+
+Every error response — from every module — uses the same JSON body:
+
+```json
+{
+  "error_code": "OA-400",
+  "error_description": "username is required",
+  "error_source": "OAuthAPI",
+  "error_stack": [{ "field": "username", "reason": "missing" }]
+}
+```
+
+| Field | Rule |
+| --- | --- |
+| `error_code` | Relays Keycloak's `error` field when the failure came from a Keycloak call; otherwise a local `OA-xxx` code (below) |
+| `error_description` | Group-provided human message |
+| `error_source` | Always `OAuthAPI` |
+| `error_stack` | **Array of objects**, chaining causes down to the root cause — never a string or an array of strings |
+
+### Local `OA-xxx` code family
+
+Used when the failure is local (bad structure, missing/invalid auth) and Keycloak was not called or returned no code. Epics 4-6 **must reuse this table** — do not invent a new prefix (`ERR_USER_*`, etc.):
+
+| Code | HTTP status | Meaning |
+| --- | --- | --- |
+| `OA-400` | 400 | Bad request structure / validation failure |
+| `OA-401` | 401 | Missing or invalid authentication (local, no Keycloak code to relay) |
+| `OA-403` | 403 | Forbidden (local) |
+| `OA-404` | 404 | Entity not found |
+| `OA-409` | 409 | Conflict (e.g. duplicate username) |
+| `OA-500` | 500 | Unexpected internal error |
+
+### How it's wired
+
+- `src/errors/oa-error.mapper.ts` — `OaException` + `OaErrorMapper` factory (`badRequest`, `unauthorized`, `forbidden`, `notFound`, `conflict`, `fromKeycloak`). Route/service code throws these instead of building JSON by hand.
+- `src/errors/oa-exception.filter.ts` — global Nest exception filter (`app.useGlobalFilters` in `main.ts`). Formats **any** thrown value — `OaException`, a standard Nest `HttpException`, or an unexpected error — into the envelope above. No route can fall back to Nest's default `{ statusCode, message }` body.
+
+## Authorization model (client `oauth`)
+
+Stories 6.1-6.4 are **verify-first**: the professor's realm import
+(`infrastructure/dev.local/services/keycloak/constrsw.json`) already ships the
+full B.2 authorization model for client `oauth`. This group does **not** own
+or edit that file — it verifies what the import contains and would only
+gap-fill genuinely missing objects via the running Admin Console or Admin API.
+
+> **Verification method used here:** static inspection of `constrsw.json` as
+> committed to the `base` repo (the same file `start-dev --import-realm`
+> loads). This confirms what *will* be imported. Docker/Keycloak were not
+> running in this environment, so **live** Admin Console re-confirmation after
+> an actual `docker compose up` + volume import is still recommended before
+> treating 6.1-6.4 as fully closed — see the caveat under each story below.
+
+### Story 6.1 — client roles
+
+Client roles on `oauth`, confirmed present in `constrsw.json`:
+
+| Role | Present |
+| --- | --- |
+| `administrator` | ✅ |
+| `coordinator` | ✅ |
+| `professor` | ✅ |
+| `student` | ✅ |
+
+These are the canonical **English** B.2 names — never `funcionario` /
+`coordenador`. No gap to fill; no realm JSON change needed. (The client also
+defines `uma_protection`, a Keycloak-internal role for its own Authorization
+Services client — not part of the B.2 set, left as-is.)
+
+Story 5.6's logical-delete representation for roles created via this API is
+separate from these four client roles; B.2 policy binding always uses the
+canonical **active** role names above, never an inactive/soft-deleted form.
+
+**Still pending:** confirm the same four roles appear under **Client roles**
+for `oauth` in the running Admin Console (`:8081`) after the volume import,
+since a stale `constrsw-keycloak-data` volume would not pick up JSON changes.
+
+### Story 6.2 — authorization resources
+
+`authorizationServicesEnabled: true` on client `oauth`, confirmed in
+`constrsw.json`. The eight named resources, each with its URL, are present:
+
+| Resource | URL |
+| --- | --- |
+| `classes` | `/classes` |
+| `courses` | `/courses` |
+| `lessons` | `/lessons` |
+| `professors` | `/professors` |
+| `reservations` | `/reservations` |
+| `resources` | `/resources` |
+| `rooms` | `/rooms` |
+| `students` | `/students` |
+
+No gap to fill. The import also defines a `Default Resource` (`/*`) — that is
+Keycloak's own catch-all, not one of the eight B.2 resources; it is left as-is
+and ignored by this list.
+
+These URLs exist only to identify the resource inside Keycloak Authorization
+Services — this SPEC does **not** implement `classes`/`courses`/etc. as real
+HTTP routes or domain services (NFR11).
+
+**Still pending:** same live-console caveat as 6.1 — confirm Authorization →
+Resources on client `oauth` lists these eight after the actual volume import.
+
+### Story 6.3 — role policies
+
+One **Role** policy per B.2 permission-bearing role, each filtered by client
+`oauth` (`oauth/<role>` in the export), confirmed in `constrsw.json`:
+
+| Policy | Bound role |
+| --- | --- |
+| `administrator-policy` | `administrator` |
+| `coordinator-policy` | `coordinator` |
+| `professor-policy` | `professor` |
+
+No gap to fill.
+
+The import **also** contains `student-policy` (bound to `student`, filtered by
+client `oauth`). It exists in the realm but — see Story 6.4 — is **not**
+applied to any resource permission, so `student` still ends up with **no**
+resource grants, matching B.2. This is documented, not removed: this group
+does not edit the professor's realm to make it match the brief.
+
+**Still pending:** same live-console caveat as 6.1 — confirm Authorization →
+Policies on client `oauth` lists these four (three B.2 + `student-policy`)
+after the actual volume import.
+
+### Story 6.4 — resource-based permissions
+
+Three resource-based permissions, all `decisionStrategy: AFFIRMATIVE`,
+confirmed present in `constrsw.json` (the export nests `resources` /
+`applyPolicies` as JSON strings under each permission's `config` — read those,
+not the top-level `permissions` array, which the export leaves empty):
+
+| Permission | Resources | Applied policies |
+| --- | --- | --- |
+| `administrator-permissions` | `professors`, `resources`, `rooms`, `students` | `administrator-policy` |
+| `coordinator-permissions` | `classes`, `courses` | `coordinator-policy`, `administrator-policy` |
+| `professor-permissions` | `lessons`, `reservations` | `coordinator-policy`, `professor-policy`, `administrator-policy` |
+
+**These extra policies (`coordinator-permissions` also granting
+`administrator-policy`; `professor-permissions` also granting
+`coordinator-policy` + `administrator-policy`) are intentional, not gaps.**
+They are **not** removed to match the Moodle brief's single-policy table —
+see "Divergence from the T1 brief" in `keycloak-authz.md` (group decision,
+2026-09-09: the realm wins). With `AFFIRMATIVE` strategy, access is
+hierarchical:
+
+- `administrator` → all eight resources
+- `coordinator` → `courses`, `classes`, `lessons`, `reservations`
+- `professor` → `lessons`, `reservations`
+- `student` → none (`student-policy` applied to no permission)
+
+No gap to fill; configuration is exactly what the professor's realm already
+specifies. This matrix is the **test oracle** for Story 6.5.
+
+**Still pending:** same live-console caveat as 6.1 — confirm Authorization →
+Permissions on client `oauth` shows these effective bindings (not just the
+raw JSON shape) after the actual volume import.
+
+### Story 6.5 — `POST /authz/validate`
+
+Asks whether the caller's token grants access to one named resource. **Decided
+by Keycloak Authorization Services, not by this API** — there is no local
+role→resource table anywhere in `src/authz/`.
+
+- **Header**: `Authorization: Bearer <access_token>` (checked by the same
+  `BearerAuthGuard` used elsewhere — see 401/503 rules above).
+- **Body**: JSON `{ "resource": "<name>" }`, `<name>` one of the eight
+  resources from Story 6.2.
+- **How it decides**: the route calls the Keycloak token endpoint again, this
+  time with `grant_type=urn:ietf:params:oauth:grant-type:uma-ticket`,
+  `audience=oauth`, `permission=<resource>`, and the **caller's** access token
+  as the `Authorization` header (not the service's client credentials). A
+  `200` from Keycloak means permitted; a `403` means denied. Any other status
+  is treated as a failure to evaluate, not as an allow/deny answer.
+- **Responses**:
+
+  | Status | Meaning |
+  | --- | --- |
+  | `200` | Keycloak permits access (empty body) |
+  | `403` | Keycloak denies access (OA envelope) |
+  | `401` | Missing/invalid token (OA envelope, from `BearerAuthGuard`) |
+  | `400` | Malformed body / unknown resource name (OA envelope, local `OA-400`) |
+
+- **Expected outcomes** — the realm-derived matrix in `keycloak-authz.md`
+  (Stories 6.1-6.4), reproduced here as the test oracle:
+
+  | Role | Allowed resources |
+  | --- | --- |
+  | `administrator` | all eight |
+  | `coordinator` | `courses`, `classes`, `lessons`, `reservations` |
+  | `professor` | `lessons`, `reservations` |
+  | `student` | none |
+
+  This is **hierarchical** (`administrator` ⊇ `coordinator` ⊇ `professor`) by
+  the realm's own multi-policy configuration (Story 6.4) — it is **not** the
+  Moodle brief's disjoint table, which this group is not using as the oracle
+  (2026-09-09 decision).
+
+**Live verification pending:** unit tests mock the Keycloak permission check
+and confirm the route's plumbing reaches the right decision for every
+role→resource pair above (`src/authz/authz-matrix.spec.ts`), proving no local
+matrix exists. Running these assertions against the actual professor Keycloak
+stack (login as each of the four test users, then call `/authz/validate`) was
+not possible in this environment — Docker is not installed here — and is the
+one remaining step before closing 6.5 end-to-end.
 
 ## Running locally
 

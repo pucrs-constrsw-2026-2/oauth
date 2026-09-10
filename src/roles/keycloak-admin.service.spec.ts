@@ -1,5 +1,16 @@
+import { OaException } from '../errors';
 import { KeycloakSettingsService } from '../config';
 import { KeycloakAdminService } from './keycloak-admin.service';
+
+/** Rejects with the OA exception so its envelope can be asserted. */
+async function rejection(promise: Promise<unknown>): Promise<OaException> {
+  try {
+    await promise;
+  } catch (error) {
+    return error as OaException;
+  }
+  throw new Error('expected the call to reject');
+}
 
 describe('KeycloakAdminService', () => {
   const settings = {
@@ -25,12 +36,13 @@ describe('KeycloakAdminService', () => {
   it('maps an Admin API network failure to OA 503', async () => {
     fetchMock.mockRejectedValue(new Error('network down'));
 
-    await expect(service.listRoles()).rejects.toMatchObject({
-      status: 503,
-      response: expect.objectContaining({
-        error_code: 'OA-503',
-        error_source: 'OAuthAPI',
-      }),
+    const error = await rejection(service.listRoles());
+
+    expect(error).toBeInstanceOf(OaException);
+    expect(error.getStatus()).toBe(503);
+    expect(error.toEnvelope()).toMatchObject({
+      error_code: 'OA-503',
+      error_source: 'OAuthAPI',
     });
   });
 
@@ -40,10 +52,10 @@ describe('KeycloakAdminService', () => {
       .mockResolvedValueOnce(jsonResponse([{ id: 'client-uuid', clientId: 'oauth' }]))
       .mockResolvedValueOnce(jsonResponse({ roles: [] }));
 
-    await expect(service.listRoles()).rejects.toMatchObject({
-      status: 502,
-      response: expect.objectContaining({ error_code: 'OA-502' }),
-    });
+    const error = await rejection(service.listRoles());
+
+    expect(error.getStatus()).toBe(502);
+    expect(error.toEnvelope().error_code).toBe('OA-502');
   });
 
   it('uses the client role mapping endpoint for assignment', async () => {
