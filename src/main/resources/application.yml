@@ -10,3 +10,22 @@ keycloak:
 logging:
   level:
     br.pucrs.constrsw: DEBUG
+
+spring:
+  application:
+    name: oauth-api
+
+management:
+  server:
+    port: ${OAUTH_INTERNAL_METRICS_PORT:9464}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: oauth-api
+  tracing:
+    sampling:
+      probability: 1.0
+
