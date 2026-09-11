@@ -60,8 +60,11 @@ export class KeycloakTokenClient {
       });
     } catch (cause) {
       this.logger.error('Keycloak token endpoint unreachable', cause as Error);
+      // 503, not 401: the caller's credentials may be perfectly good, and
+      // telling them to sign in again would blame them for our outage. This
+      // matches the Bearer guard and the authorization client.
       throw OaErrorMapper.fromKeycloak(
-        HttpStatus.UNAUTHORIZED,
+        HttpStatus.SERVICE_UNAVAILABLE,
         'Could not reach Keycloak to authenticate this request.',
         { error: 'keycloak_unreachable' },
       );

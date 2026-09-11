@@ -83,7 +83,7 @@ describe('KeycloakTokenClient', () => {
       expect(thrown?.toEnvelope().error_code).toBe('invalid_grant');
     });
 
-    it('throws a 401 OaException when Keycloak is unreachable', async () => {
+    it('answers 503, not 401, when Keycloak is unreachable', async () => {
       fetchMock.mockRejectedValue(new Error('connect ECONNREFUSED'));
 
       let thrown: OaException | undefined;
@@ -93,8 +93,42 @@ describe('KeycloakTokenClient', () => {
         thrown = error as OaException;
       }
 
+      // The caller's credentials may be perfectly good; blaming them for our
+      // outage would send them to re-authenticate for nothing. Same rule as
+      // the Bearer guard and the authorization client.
       expect(thrown).toBeInstanceOf(OaException);
-      expect(thrown?.getStatus()).toBe(401);
+      expect(thrown?.getStatus()).toBe(503);
+    });
+
+    it('never puts tokens in the error body of an incomplete response', async () => {
+      // Keycloak answered 200 but omitted token_type, so the response is
+      // unusable — yet it still carries real tokens.
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            access_token: 'real-access-token',
+            refresh_token: 'real-refresh-token',
+            expires_in: 300,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      );
+
+      let thrown: OaException | undefined;
+      try {
+        await client.passwordGrant('aluno@pucrs.br', 'secret');
+      } catch (error) {
+        thrown = error as OaException;
+      }
+
+      const serialized = JSON.stringify(thrown?.toEnvelope());
+      expect(serialized).not.toContain('real-access-token');
+      expect(serialized).not.toContain('real-refresh-token');
+      expect(serialized).toContain('[redacted]');
+      // Non-sensitive context is kept, so the error stays diagnosable.
+      expect(thrown?.toEnvelope().error_stack[0]).toMatchObject({
+        expires_in: 300,
+      });
     });
   });
 
