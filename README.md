@@ -164,13 +164,18 @@ which this service accepts.
 
 No JWKS variable is introduced — see the environment contract above.
 
-### 401 vs 403
+### 401 vs 403 vs 503
 
 | Status | Meaning | Decided by |
 | --- | --- | --- |
 | `401` | No token, malformed header, or Keycloak does not accept the token | The guard |
-| `403` | The caller is known but not allowed to perform the operation | Keycloak |
-| `503` | The token could not be verified because Keycloak is unreachable | The guard |
+| `403` | The caller is known but not allowed to perform the operation | Keycloak, or the required client role |
+| `503` | Keycloak could not be reached | The guard |
+
+`503` on an unreachable Keycloak is a rule the whole API follows — the guard,
+`/login`, `/refresh` and `/authz/validate` all answer it. A caller whose
+credentials or token are perfectly valid must never be told to sign in again
+because a dependency of ours is down.
 
 **The guard never decides permissions.** Any caller with a token Keycloak
 accepts passes it, even with no roles at all. Authorization is answered by
@@ -400,6 +405,14 @@ matrix exists. Running these assertions against the actual professor Keycloak
 stack (login as each of the four test users, then call `/authz/validate`) was
 not possible in this environment — Docker is not installed here — and is the
 one remaining step before closing 6.5 end-to-end.
+
+## Errors never carry credentials
+
+`error_stack` relays the upstream payload so failures stay diagnosable, but
+`access_token`, `refresh_token`, `id_token`, `client_secret` and `password` are
+replaced with `[redacted]` first. An incomplete token response, for instance,
+is unusable yet still carries real tokens, and the envelope is both returned to
+the caller and read by whatever logs it.
 
 ## Running locally
 

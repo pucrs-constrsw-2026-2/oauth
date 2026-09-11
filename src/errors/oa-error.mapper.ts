@@ -141,7 +141,7 @@ export const OaErrorMapper = {
     const stack: Record<string, unknown>[] = [
       {
         source: 'keycloak',
-        ...(isRecord(keycloakBody) ? keycloakBody : { raw: keycloakBody }),
+        ...(isRecord(keycloakBody) ? redactSecrets(keycloakBody) : { raw: keycloakBody }),
       },
     ];
     return new OaException(status, code, description, stack);
@@ -199,6 +199,27 @@ export const OaErrorMapper = {
     };
   },
 };
+
+/**
+ * Credentials and tokens that must never travel in an error body. An
+ * incomplete token response, for instance, still carries real tokens, and
+ * `error_stack` is returned to the caller and read by whatever logs it.
+ */
+const SECRET_FIELDS = [
+  'access_token',
+  'refresh_token',
+  'id_token',
+  'client_secret',
+  'password',
+];
+
+function redactSecrets(body: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    safe[key] = SECRET_FIELDS.includes(key) ? '[redacted]' : value;
+  }
+  return safe;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
