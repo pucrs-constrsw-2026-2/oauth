@@ -1,0 +1,32 @@
+meta {
+  name: 11 - Update User
+  type: http
+  seq: 11
+}
+
+put {
+  url: {{baseUrl}}/users/{{user_id}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "pessoa4.user@example.com",
+    "first-name": "Pessoa",
+    "last-name": "Quatro Atualizada",
+    "enabled": true
+  }
+}
+
+tests {
+  test("atualiza dados cadastrais sem corpo de resposta", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.equal("");
+  });
+}

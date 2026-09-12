@@ -1,0 +1,54 @@
+meta {
+  name: 03 - Login Multipart
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/login
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  username: {{username}}
+  password: {{password}}
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    const body = res.getBody();
+    bru.setVar("access_token", body.access_token);
+    bru.setVar("accessToken", body.access_token);
+    bru.setVar("refreshToken", body.refresh_token);
+  }
+}
+
+tests {
+  test("login multipart tambem retorna tokens", function () {
+    const body = res.getBody();
+
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getHeader("content-type")).to.include("application/json");
+    expect(res.getHeader("cache-control")).to.include("no-store");
+    expect(body).to.have.all.keys(
+      "token_type",
+      "access_token",
+      "expires_in",
+      "refresh_token",
+      "refresh_expires_in"
+    );
+    expect(body.token_type).to.equal("Bearer");
+    expect(body.access_token).to.be.a("string").and.not.be.empty;
+    expect(body.expires_in).to.be.a("number").and.be.greaterThan(0);
+    expect(body.refresh_token).to.be.a("string").and.not.be.empty;
+    expect(body.refresh_expires_in).to.be.a("number").and.be.greaterThan(0);
+    expect(bru.getVar("accessToken")).to.equal(body.access_token);
+    expect(bru.getVar("refreshToken")).to.equal(body.refresh_token);
+  });
+}
+
+docs {
+  Exercita a segunda codificacao aceita pelo endpoint POST /login:
+  multipart/form-data.
+}

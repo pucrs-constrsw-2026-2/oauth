@@ -1,1 +1,54 @@
+# Environment files and local secrets
 .env
+.env.local
+.env.*.local
+!.env.example
+!.env.template
+
+# Java and Maven build output
+target/
+*.class
+dependency-reduced-pom.xml
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+buildNumber.properties
+.mvn/timing.properties
+
+# IDEs and editors
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.classpath
+.project
+.settings/
+.factorypath
+.springBeans
+.sts4-cache/
+.apt_generated/
+/bin/
+/out/
+
+# Logs and JVM crash files
+*.log
+!src/test/resources/**/*.log
+/logs/
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
+.attach_pid*
+
+# Operating system and temporary files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo

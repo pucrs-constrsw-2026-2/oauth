@@ -1,0 +1,30 @@
+meta {
+  name: 17 - Update Role
+  type: http
+  seq: 17
+}
+
+put {
+  url: {{baseUrl}}/roles/{{role_id}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{access_token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "{{role_name}}-updated",
+    "description": "Role de teste atualizada"
+  }
+}
+
+tests {
+  test("atualiza role sem corpo de resposta", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.equal("");
+  });
+}

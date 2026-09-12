@@ -1,0 +1,41 @@
+meta {
+  name: 07 - Refresh Invalido
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/refresh-token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  refresh_token: refresh-token-invalido
+}
+
+tests {
+  test("Keycloak rejeita refresh token invalido no contrato padrao", function () {
+    const body = res.getBody();
+
+    expect(res.getStatus()).to.equal(400);
+    expect(res.getHeader("content-type")).to.include("application/json");
+    expect(body).to.have.all.keys(
+      "error_code",
+      "error_description",
+      "error_source",
+      "error_stack"
+    );
+    expect(body.error_code).to.equal("OA-400");
+    expect(body.error_description).to.be.a("string").and.not.be.empty;
+    expect(body.error_source).to.equal("OAuthAPI.Auth");
+    expect(body.error_stack).to.be.an("array").that.is.not.empty;
+    expect(body.error_stack[0].message).to.be.a("string").and.not.be.empty;
+    expect(JSON.stringify(body)).not.to.include("refresh-token-invalido");
+  });
+}
+
+docs {
+  Teste negativo intencional que chega ao Keycloak e confirma o mapeamento de
+  um refresh token invalido para o contrato publico do servico OAuth.
+}

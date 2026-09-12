@@ -1,8 +1,8 @@
 server:
-  port: 8081
+  port: ${OAUTH_INTERNAL_API_PORT:8081}
 
 keycloak:
-  base-url: ${KEYCLOAK_BASE_URL:http://keycloak:8080}
+  base-url: ${KEYCLOAK_SERVER_URL:${KEYCLOAK_BASE_URL:http://keycloak:8080}}
   realm: ${KEYCLOAK_REALM:constrsw}
   client-id: ${KEYCLOAK_CLIENT_ID:oauth}
   client-secret: ${KEYCLOAK_CLIENT_SECRET:}
@@ -16,7 +16,7 @@ spring:
         jwt:
           # validação local via JWKS - o Spring busca as chaves públicas
           # automaticamente em {issuer-uri}/protocol/openid-connect/certs
-          issuer-uri: ${KEYCLOAK_BASE_URL:http://keycloak:8080}/realms/${KEYCLOAK_REALM:constrsw}
+          issuer-uri: ${keycloak.base-url}/realms/${keycloak.realm}
 
 springdoc:
   swagger-ui:
@@ -27,8 +27,11 @@ springdoc:
 management:
   endpoints:
     web:
+      base-path: /
       exposure:
         include: health
+      path-mapping:
+        health: health
   endpoint:
     health:
       show-details: never
