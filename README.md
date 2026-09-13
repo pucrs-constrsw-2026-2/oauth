@@ -43,6 +43,23 @@ docker compose up --build
 - Swagger: <http://localhost:8181/swagger-ui.html>
 - OpenAPI JSON: <http://localhost:8181/v3/api-docs>
 
+## Login
+
+O endpoint `POST /login` recebe `username` e `password` como `multipart/form-data`,
+autentica o usuário no Keycloak e responde com HTTP 201 e os tokens de acesso e
+renovação.
+
+Exemplo com a aplicação iniciada pelo Docker Compose:
+
+```bash
+curl --request POST http://localhost:8181/login \
+  --form 'username=admin@pucrs.br' \
+  --form 'password=SUA_SENHA'
+```
+
+O `client_secret` é lido da variável `KEYCLOAK_CLIENT_SECRET` e nunca deve ser
+incluído no código ou enviado pelo cliente da API.
+
 ## Testes
 
 ```bash

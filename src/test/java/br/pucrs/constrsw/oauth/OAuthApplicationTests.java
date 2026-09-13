@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = "keycloak.client-secret=test-client-secret")
 @AutoConfigureMockMvc
 class OAuthApplicationTests {
 
@@ -24,6 +24,8 @@ class OAuthApplicationTests {
                 .andExpect(jsonPath("$.status").value("UP"));
 
         mockMvc.perform(get("/v3/api-docs"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/login'].post").exists())
+                .andExpect(jsonPath("$.paths['/login'].post.requestBody.content['multipart/form-data']").exists());
     }
 }
