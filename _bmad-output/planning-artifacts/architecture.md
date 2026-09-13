@@ -7,8 +7,8 @@ paradigm: 'Hexagonal Architecture (Ports and Adapters)'
 scope: 'OAuth/OIDC Authentication & Authorization Microservice'
 status: final
 created: '2026-09-02'
-updated: '2026-09-02'
-binds: ['FR-1', 'FR-2', 'FR-3', 'FR-4', 'FR-5', 'FR-6', 'FR-7', 'FR-8', 'FR-9', 'FR-10', 'SM-1', 'SM-2', 'SM-3', 'SM-C1']
+updated: '2026-09-13'
+binds: ['FR-1', 'FR-2', 'FR-3', 'FR-4', 'FR-5', 'FR-6', 'FR-7', 'FR-8', 'FR-9', 'FR-10', 'NFR-7', 'SM-1', 'SM-2', 'SM-3', 'SM-C1']
 sources: ['_bmad-output/planning-artifacts/prd.md', 'docs/professor-specification.md']
 companions: ['team-integration-guide.md']
 ---
@@ -107,6 +107,11 @@ graph TD
   }
   ```
 
+### AD-7 — Observabilidade da Plataforma via Grafana [ADOPTED]
+- **Binds:** Ambiente de desenvolvimento/demonstração (compose raiz da malha).
+- **Prevents:** Configuração manual de datasource no Grafana a cada `docker compose up`.
+- **Rule:** O serviço `grafana` roda no `docker-compose.yml` raiz da malha (fora do repositório do oauth), provisionado via arquivos de datasource/dashboard versionados. O datasource Prometheus é pré-configurado apontando para o serviço `prometheus` (nome de host convencionado), ainda que esse serviço seja entregue por outra frente de trabalho — o Grafana deve subir corretamente mesmo antes do Prometheus existir (datasource fica "unreachable" até lá).
+
 ---
 
 ## Consistency Conventions
@@ -131,6 +136,7 @@ graph TD
 | **Web Server** | `nginx:alpine` | Proxy reverso e terminação HTTP na porta 8000 |
 | **Composer** | `2.x` | Gerenciador de dependências PHP |
 | **Container Engine** | `Docker` & `Docker Compose v2` | Orquestração do ambiente completo |
+| **Grafana** | `11.x` | Dashboards de métricas operacionais da plataforma (compose raiz) |
 
 ---
 
