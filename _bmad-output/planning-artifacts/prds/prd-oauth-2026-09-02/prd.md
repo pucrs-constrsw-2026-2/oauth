@@ -2,7 +2,7 @@
 title: OAuth Microservice PRD
 status: final
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-13
 ---
 
 # PRD: Microserviço de Autenticação e Autorização (OAuth/OIDC)
@@ -160,6 +160,18 @@ Valida o Access Token e avalia se os papéis do usuário autenticado conferem pe
   - Caso o usuário não possua nenhum papel com permissão sobre o recurso solicitado, retorna HTTP 403 (Forbidden).
   - Caso o token esteja expirado, assinado de forma inválida ou ausente, retorna HTTP 401 (Unauthorized).
   - Caso o campo `resource` seja omitido ou inválido, retorna HTTP 400 (Bad Request).
+
+---
+
+### 4.4 Observabilidade e Telemetria
+
+**Description:** Disponibiliza visibilidade operacional do ambiente da plataforma através de dashboards de métricas.
+
+#### NFR-7: Observabilidade via Grafana
+O ambiente de desenvolvimento/demonstração deve disponibilizar um serviço Grafana no compose raiz da malha, provisionado para consumir métricas operacionais da plataforma.
+- **Consequences (testable):**
+  - `docker compose up -d` sobe um serviço `grafana` acessível via porta dedicada, sem exigir configuração manual de datasource na primeira execução.
+  - A instrumentação do oauth para expor métricas em formato Prometheus (porta já reservada `OAUTH_INTERNAL_METRICS_PORT`) e o serviço coletor (Prometheus) ficam fora do escopo desta mudança — ambos sob responsabilidade da frente de trabalho do Prometheus.
 
 ---
 

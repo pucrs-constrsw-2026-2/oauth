@@ -88,6 +88,11 @@ Permitir que outros microserviços do ecossistema acadêmico validem tokens de a
 - **Atribuição:** Integrante 4 (Branch `grupo01/feat/authorization-policies`)
 - **FRs cobertos:** FR-10.
 
+### Epic 5: Observabilidade da Plataforma — Grafana
+Provisionar o serviço Grafana no ambiente de desenvolvimento/demonstração (compose raiz da malha), com datasource Prometheus pré-configurado, permitindo dashboards de métricas operacionais assim que a coleta (Prometheus) estiver disponível.
+- **Atribuição:** Você (Branch base `grupo01`)
+- **Requisitos Cobertos:** NFR-7.
+
 ---
 
 ## Epic 1: Fundação do Microserviço, Ambiente Docker e Contratos da Arquitetura Hexagonal
@@ -297,3 +302,23 @@ So that meu serviço possa autorizar ou bloquear a operação de negócio confor
 **And** se o usuário autenticado NÃO possuir permissão para o recurso solicitado (ex: role `student` solicitando `rooms`, ou role `professor` solicitando `classes`), a API responde status HTTP 403 (Forbidden)
 **And** se o token for omitido, estiver expirado ou possuir assinatura inválida, a API responde HTTP 401 (Unauthorized)
 **And** se o campo `resource` for omitido ou inválido, a API responde HTTP 400 (Bad Request).
+
+---
+
+## Epic 5: Observabilidade da Plataforma — Grafana
+
+**Objetivo do Épico:** Disponibilizar visualização de métricas operacionais via Grafana no ambiente compartilhado da malha, sem bloquear na existência do coletor Prometheus. A instrumentação do oauth (endpoint `/metrics`) e o serviço Prometheus são responsabilidade da frente de trabalho do Prometheus, não desta story.
+
+### Story 5.1: Provisionamento do Serviço Grafana no Compose Raiz
+
+Como desenvolvedor do time,
+Eu quero um serviço Grafana pré-configurado no `docker-compose.yml` raiz, com datasource Prometheus e provisioning automático,
+Para que dashboards de métricas fiquem disponíveis assim que a coleta de métricas existir, sem setup manual.
+
+**Acceptance Criteria:**
+
+**Given** o `docker-compose.yml` raiz da malha
+**When** o desenvolvedor executa `docker compose up -d grafana`
+**Then** o serviço `grafana` inicializa em estado saudável, acessível na porta dedicada
+**And** o datasource Prometheus já está provisionado (apontando para o host `prometheus`), mesmo que o serviço `prometheus` ainda não exista
+**And** nenhuma configuração manual é necessária na primeira execução (usuário/senha via variáveis de ambiente).
