@@ -95,6 +95,10 @@ Exchanges username/password for Keycloak tokens (Story 2.1, CAP-1). No
   are **accepted and silently ignored** — the client credentials sent to
   Keycloak always come from `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET`,
   never from the request.
+- **Scope**: the service always adds `scope=openid` on the Keycloak token
+  call (not taken from the caller). Access tokens without `openid` are
+  rejected by UserInfo, so `/users`, `/roles` and `/authz/validate` would
+  all answer `OA-401` even though `/login` succeeded.
 - **Success**: `200` (not `201` — nothing is created) with JSON:
 
   ```json
