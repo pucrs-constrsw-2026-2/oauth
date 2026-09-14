@@ -40,40 +40,43 @@ O professor anunciou que vai fornecer um **`docker-compose.yml` único e compart
 - 🔧 **Ajustar**: `.env.example` — remover variáveis que passam a ser gerenciadas centralmente (ex: admin do Keycloak), manter só as específicas do nosso serviço (`KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`). `KEYCLOAK_BASE_URL` provavelmente vem fixo do compose central (nome do container dele), não do nosso `.env`.
 - ✅ **Confirmado**: não precisa clonar o repositório `base` nem criar branch lá — o compose compartilhado é responsabilidade do professor, não nossa. Todo o trabalho continua dentro do repo `oauth`, branch `grupo08`.
 
-## Sincronização pendente
+## Sincronização e histórico recente
 
-A `main` do `oauth` foi alterada pelo professor/curso depois que criamos a `grupo08`. Precisa:
-```bash
-git fetch origin
-git checkout grupo08
-git merge origin/main
-```
-(resolver conflitos triviais; qualquer conflito não-trivial deve ser revisado manualmente, não resolvido automaticamente por uma IA sem revisão)
+- A entrega da branch `grupo08-feat/lucas` foi integrada à `grupo08` pelo PR #14.
+- O merge inclui Auth, CRUD de usuários, CRUD de roles, associação/desassociação de roles e a coleção Bruno correspondente.
+- O commit `698ea20` encerra a entrega da Pessoa 4; o ajuste posterior `2842bb7` altera a `baseUrl` de `8081` para `8181`.
 
 ## Divisão do trabalho (grupo, 4 pessoas)
 
 - **Arthur**: arquitetura, infra, config central (`KeycloakProperties`, `WebClientConfig`, `SecurityConfig`), contrato de erro compartilhado — **testado e funcional** até a mudança de infraestrutura acima.
-- **Pessoa 3**: Auth (`/login`, `/refresh-token`) — ainda não implementado.
-- **Pessoa 4**: Users e Roles (CRUD completo) — ainda não implementado.
+- **Pessoa 3 (Lucas)**: Auth (`/login`, `/refresh-token`) — **implementado e integrado**.
+- **Pessoa 4 (Anthony)**: Users e Roles (CRUD completo e associação de roles) — **implementado, testado e integrado**.
 - **João Biasoli**: Astah (User/Role já concluído), Postman, README, apresentação.
 - Regra geral: toda parte precisa de revisão de outra pessoa antes do merge, sem exceção fixa de quem revisa quem.
 
 ## Estado atual do código (branch `grupo08`, repo `oauth`)
 
-Testado rodando de ponta a ponta via `docker compose up` (com nosso compose antigo, antes da mudança de infra):
-- App Spring Boot sobe sem erro.
-- Keycloak local importava o realm `constrsw` corretamente.
-- Swagger público em `/docs` (após corrigir rotas do springdoc faltando no `SecurityConfig`).
-- Rotas protegidas retornando 401 sem token (comportamento esperado, ainda sem controllers de negócio).
-- `.gitignore` protegendo `.env`.
+- App Spring Boot e Keycloak sobem via Docker.
+- Swagger público em `/docs`.
+- Login e refresh token implementados.
+- Usuários: criação, listagem, consulta, atualização, troca de senha e desativação.
+- Roles de realm: criação, listagem, consulta, atualização parcial/completa e remoção.
+- Associação e desassociação de roles de realm a usuários.
+- Rotas administrativas protegidas por bearer token.
+- Contratos de requisição/resposta e tratamento centralizado de erros.
+- Coleção Bruno cobrindo Auth, Users e Roles.
+- Suíte automatizada validada com **80 testes, sem falhas ou erros**.
+- Smoke test integrado validou login, Users, Roles e associação/desassociação de role.
+
+### Observações conhecidas
+
+- O health check do compose compartilhado pode marcar o container como `unhealthy` por invocar `node`, ausente na imagem Java, embora `/health` responda HTTP 200.
+- Uma chamada sem autenticação a `/users` retorna HTTP 401 sem o corpo padronizado de erro porque é interceptada pelo filtro do Spring Security antes do `@RestControllerAdvice`.
 
 ## Pendências / próximos passos
 
-1. Fazer merge da `main` atualizada na `grupo08`.
-2. Remover `docker-compose.yml` próprio do repo `oauth`.
-3. Decidir (aguardando confirmação) se `keycloak/realm-export.json` sai também.
-4. Ajustar `.env.example` para as variáveis que continuam sendo nossas.
-5. Aguardar o compose oficial do professor (validação: segunda, 07/09) e integrar — provavelmente só ajuste de nomes de variável.
-6. Pessoa 3 implementar `AuthController` + `KeycloakAuthService`.
-7. Pessoa 4 implementar `UserController`/`RoleController` + services correspondentes.
-8. João finalizar Postman collection + README com as decisões documentadas acima.
+1. Corrigir o health check do compose compartilhado para usar uma ferramenta presente na imagem Java (por exemplo, `curl`).
+2. Padronizar o corpo da resposta 401 gerada pelo Spring Security, se exigido pelo contrato da disciplina.
+3. Confirmar se `keycloak/realm-export.json` continua sob responsabilidade do grupo.
+4. Revisar `.env.example` conforme as variáveis definitivas do compose compartilhado.
+5. João finalizar os artefatos restantes de documentação e apresentação.
