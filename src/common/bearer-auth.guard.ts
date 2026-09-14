@@ -11,6 +11,7 @@ import {
   AuthenticatedUser,
   KeycloakTokenVerifierService,
 } from './keycloak-token-verifier.service';
+import { roleClaimsFromAccessToken } from './jwt-payload';
 
 /** Request with the caller resolved by the guard. */
 export interface AuthenticatedRequest extends Request {
@@ -57,7 +58,13 @@ export class BearerAuthGuard implements CanActivate {
       throw new UnauthorizedException('Access token is invalid or expired.');
     }
 
-    request.user = user;
+    // UserInfo proves the token is valid but usually omits client roles.
+    // Overlay JWT role claims so AdministratorRoleGuard can see
+    // resource_access.oauth.roles (e.g. admin@pucrs.br).
+    request.user = {
+      ...user,
+      raw: { ...user.raw, ...roleClaimsFromAccessToken(token) },
+    };
     return true;
   }
 }
