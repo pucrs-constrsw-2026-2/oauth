@@ -1,9 +1,12 @@
 package br.pucrs.constrsw.oauth.controller;
 
+import br.pucrs.constrsw.oauth.dto.LoginRequest;
+import br.pucrs.constrsw.oauth.dto.LoginResponse;
 import br.pucrs.constrsw.oauth.dto.ValidateRequest;
 import br.pucrs.constrsw.oauth.dto.ValidateResponse;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -31,6 +34,18 @@ public class AuthController {
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("UP");
     }
+
+    /**
+     * POST /login: Consumir endpoint de token OAuth2 do Keycloak para gerar o access token.
+     */
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        log.info("Requisição de login recebida para usuário '{}'", request.username());
+        LoginResponse response = keycloakService.login(request);
+        meterRegistry.counter("oauth.logins.total", "status", "success").increment();
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping(value = {"/validate", "/authorize"})
     public ResponseEntity<ValidateResponse> validateAccessPost(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
@@ -39,6 +54,7 @@ public class AuthController {
         String resource = (request != null) ? request.getResource() : null;
         return executeValidation(authHeader, resource);
     }
+
     @GetMapping(value = {"/validate", "/authorize"})
     public ResponseEntity<ValidateResponse> validateAccessGet(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
@@ -91,4 +107,3 @@ public class AuthController {
         }
     }
 }
-

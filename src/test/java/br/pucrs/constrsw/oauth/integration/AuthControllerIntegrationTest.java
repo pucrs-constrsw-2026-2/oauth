@@ -1,5 +1,8 @@
 package br.pucrs.constrsw.oauth.integration;
 
+import br.pucrs.constrsw.oauth.dto.LoginRequest;
+import br.pucrs.constrsw.oauth.dto.LoginResponse;
+import br.pucrs.constrsw.oauth.exception.KeycloakException;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -7,11 +10,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -34,6 +39,35 @@ class AuthControllerIntegrationTest {
         mockMvc.perform(get("/health"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("UP"));
+    }
+
+    @Test
+    @DisplayName("Integração: POST /login com credenciais válidas deve retornar 200 OK com tokens")
+    void testLoginSuccess() throws Exception {
+        LoginResponse response = new LoginResponse("access-token-jwt", 300L, 1800L, "refresh-token-jwt", "Bearer", "openid");
+        when(keycloakService.login(any(LoginRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"student@pucrs.br\",\"password\":\"a12345678\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access_token").value("access-token-jwt"))
+                .andExpect(jsonPath("$.token_type").value("Bearer"))
+                .andExpect(jsonPath("$.expires_in").value(300));
+    }
+
+    @Test
+    @DisplayName("Integração: POST /login com credenciais inválidas deve retornar 401 INVALID_CREDENTIALS")
+    void testLoginInvalidCredentials() throws Exception {
+        when(keycloakService.login(any(LoginRequest.class)))
+                .thenThrow(new KeycloakException("INVALID_CREDENTIALS", "Usuário ou senha inválidos", HttpStatus.UNAUTHORIZED));
+
+        mockMvc.perform(post("/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"student@pucrs.br\",\"password\":\"senha-errada\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error_code").value("INVALID_CREDENTIALS"))
+                .andExpect(jsonPath("$.status").value(401));
     }
 
     @Test

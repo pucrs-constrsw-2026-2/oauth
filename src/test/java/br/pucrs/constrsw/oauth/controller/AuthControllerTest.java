@@ -1,7 +1,10 @@
 package br.pucrs.constrsw.oauth.controller;
 
+import br.pucrs.constrsw.oauth.dto.LoginRequest;
+import br.pucrs.constrsw.oauth.dto.LoginResponse;
 import br.pucrs.constrsw.oauth.dto.ValidateRequest;
 import br.pucrs.constrsw.oauth.dto.ValidateResponse;
+import br.pucrs.constrsw.oauth.exception.KeycloakException;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -40,6 +44,35 @@ class AuthControllerTest {
         ResponseEntity<String> response = authController.health();
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("UP", response.getBody());
+    }
+
+    @Test
+    @DisplayName("Deveria autenticar com sucesso e retornar 200 OK no POST /login")
+    void testLoginSuccess() {
+        LoginRequest request = new LoginRequest("aluno@pucrs.br", "senha123");
+        LoginResponse mockResponse = new LoginResponse("mock-jwt-token", 300L, 1800L, "mock-refresh-token", "Bearer", "openid");
+
+        when(keycloakService.login(any(LoginRequest.class))).thenReturn(mockResponse);
+
+        ResponseEntity<LoginResponse> response = authController.login(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("mock-jwt-token", response.getBody().accessToken());
+        assertEquals(1.0, meterRegistry.counter("oauth.logins.total", "status", "success").count());
+    }
+
+    @Test
+    @DisplayName("Deveria repassar KeycloakException 401 no POST /login com credenciais inválidas")
+    void testLoginInvalidCredentials() {
+        LoginRequest request = new LoginRequest("aluno@pucrs.br", "senhaErrada");
+
+        when(keycloakService.login(any(LoginRequest.class)))
+                .thenThrow(new KeycloakException("INVALID_CREDENTIALS", "Usuário ou senha inválidos", HttpStatus.UNAUTHORIZED));
+
+        KeycloakException ex = assertThrows(KeycloakException.class, () -> authController.login(request));
+        assertEquals("INVALID_CREDENTIALS", ex.getErrorCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
     }
 
     @Test
