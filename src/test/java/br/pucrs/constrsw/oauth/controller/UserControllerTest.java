@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.net.URI;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +36,49 @@ class UserControllerTest {
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
         userController = new UserController(keycloakService, meterRegistry);
+    }
+
+    @Test
+    @DisplayName("Deveria listar usuários com e sem filtro enabled")
+    void testGetUsersSuccess() {
+        UserResponse u1 = new UserResponse("id-1", "user1", "user1@pucrs.br", "User", "One", true);
+        UserResponse u2 = new UserResponse("id-2", "user2", "user2@pucrs.br", "User", "Two", true);
+
+        when(keycloakService.getUsers(true)).thenReturn(List.of(u1, u2));
+
+        ResponseEntity<List<UserResponse>> response = userController.getUsers(true);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(2, response.getBody().size());
+        assertEquals("user1", response.getBody().get(0).username());
+        assertEquals(1.0, meterRegistry.counter("oauth.users.listed.total").count());
+    }
+
+    @Test
+    @DisplayName("Deveria buscar usuário por ID com sucesso")
+    void testGetUserByIdSuccess() {
+        UserResponse u1 = new UserResponse("id-1", "user1", "user1@pucrs.br", "User", "One", true);
+        when(keycloakService.getUserById("id-1")).thenReturn(u1);
+
+        ResponseEntity<UserResponse> response = userController.getUserById("id-1");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("id-1", response.getBody().id());
+        assertEquals("user1@pucrs.br", response.getBody().email());
+        assertEquals(1.0, meterRegistry.counter("oauth.users.retrieved.total").count());
+    }
+
+    @Test
+    @DisplayName("Deveria lançar 404 quando usuário não existir na busca por ID")
+    void testGetUserByIdNotFound() {
+        when(keycloakService.getUserById("nao-existe"))
+                .thenThrow(new KeycloakException("USER_NOT_FOUND", "Usuário não encontrado", HttpStatus.NOT_FOUND));
+
+        KeycloakException ex = assertThrows(KeycloakException.class, () -> userController.getUserById("nao-existe"));
+        assertEquals("USER_NOT_FOUND", ex.getErrorCode());
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
     }
 
     @Test
@@ -113,5 +157,27 @@ class UserControllerTest {
         KeycloakException ex = assertThrows(KeycloakException.class, () -> userController.updatePassword("invalido-id", request));
         assertEquals("USER_NOT_FOUND", ex.getErrorCode());
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+    }
+
+    @Test
+    @DisplayName("Deveria atribuir role a usuário e retornar 204 No Content")
+    void testAssignRoleToUserSuccess() {
+        doNothing().when(keycloakService).assignRoleToUser("user-1", "role-1");
+
+        ResponseEntity<Void> response = userController.assignRoleToUser("user-1", "role-1");
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(1.0, meterRegistry.counter("oauth.users.roles.assigned.total").count());
+    }
+
+    @Test
+    @DisplayName("Deveria remover role de usuário e retornar 204 No Content")
+    void testRemoveRoleFromUserSuccess() {
+        doNothing().when(keycloakService).removeRoleFromUser("user-1", "role-1");
+
+        ResponseEntity<Void> response = userController.removeRoleFromUser("user-1", "role-1");
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(1.0, meterRegistry.counter("oauth.users.roles.removed.total").count());
     }
 }

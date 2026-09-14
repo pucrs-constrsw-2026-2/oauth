@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
 
 @RestController
 @RequestMapping("/users")
@@ -26,6 +27,28 @@ public class UserController {
     public UserController(KeycloakService keycloakService, MeterRegistry meterRegistry) {
         this.keycloakService = keycloakService;
         this.meterRegistry = meterRegistry;
+    }
+
+    /**
+     * GET /users (filtro ?enabled=): Consumir API do Keycloak passando parâmetros de busca.
+     */
+    @GetMapping
+    public ResponseEntity<List<UserResponse>> getUsers(@RequestParam(value = "enabled", required = false) Boolean enabled) {
+        log.info("Requisição para listagem de usuários com filtro enabled='{}'", enabled);
+        List<UserResponse> users = keycloakService.getUsers(enabled);
+        meterRegistry.counter("oauth.users.listed.total").increment();
+        return ResponseEntity.ok(users);
+    }
+
+    /**
+     * GET /users/{id}: Busca simples de usuário por identificador.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<UserResponse> getUserById(@PathVariable("id") String id) {
+        log.info("Requisição para busca de usuário id='{}'", id);
+        UserResponse user = keycloakService.getUserById(id);
+        meterRegistry.counter("oauth.users.retrieved.total").increment();
+        return ResponseEntity.ok(user);
     }
 
     /**
@@ -53,6 +76,32 @@ public class UserController {
         log.info("Requisição para atualização de senha do usuário id='{}'", id);
         keycloakService.updatePassword(id, request);
         meterRegistry.counter("oauth.users.password_updated.total").increment();
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * POST /users/{id}/roles/{roleId}: Atribuir uma Role a um usuário (API de role-mapping do Keycloak).
+     */
+    @PostMapping("/{id}/roles/{roleId}")
+    public ResponseEntity<Void> assignRoleToUser(
+            @PathVariable("id") String id,
+            @PathVariable("roleId") String roleId) {
+        log.info("Requisição para atribuir role id='{}' ao usuário id='{}'", roleId, id);
+        keycloakService.assignRoleToUser(id, roleId);
+        meterRegistry.counter("oauth.users.roles.assigned.total").increment();
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * DELETE /users/{id}/roles/{roleId}: Remover uma Role de um usuário.
+     */
+    @DeleteMapping("/{id}/roles/{roleId}")
+    public ResponseEntity<Void> removeRoleFromUser(
+            @PathVariable("id") String id,
+            @PathVariable("roleId") String roleId) {
+        log.info("Requisição para remover role id='{}' do usuário id='{}'", roleId, id);
+        keycloakService.removeRoleFromUser(id, roleId);
+        meterRegistry.counter("oauth.users.roles.removed.total").increment();
         return ResponseEntity.noContent().build();
     }
 }

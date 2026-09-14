@@ -15,11 +15,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -31,6 +32,41 @@ class UserControllerIntegrationTest {
 
     @MockBean
     private KeycloakService keycloakService;
+
+    @Test
+    @DisplayName("Integração: GET /users deve retornar lista de usuários")
+    void testGetUsers() throws Exception {
+        UserResponse user = new UserResponse("u-1", "joao", "joao@pucrs.br", "Joao", "Silva", true);
+        when(keycloakService.getUsers(true)).thenReturn(List.of(user));
+
+        mockMvc.perform(get("/users?enabled=true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("u-1"))
+                .andExpect(jsonPath("$[0].username").value("joao"));
+    }
+
+    @Test
+    @DisplayName("Integração: GET /users/{id} deve retornar usuário quando existir")
+    void testGetUserById() throws Exception {
+        UserResponse user = new UserResponse("u-1", "joao", "joao@pucrs.br", "Joao", "Silva", true);
+        when(keycloakService.getUserById("u-1")).thenReturn(user);
+
+        mockMvc.perform(get("/users/u-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("u-1"))
+                .andExpect(jsonPath("$.email").value("joao@pucrs.br"));
+    }
+
+    @Test
+    @DisplayName("Integração: GET /users/{id} quando usuário não existir deve retornar 404")
+    void testGetUserByIdNotFound() throws Exception {
+        when(keycloakService.getUserById("inexistente"))
+                .thenThrow(new KeycloakException("USER_NOT_FOUND", "Usuário não encontrado", HttpStatus.NOT_FOUND));
+
+        mockMvc.perform(get("/users/inexistente"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error_code").value("USER_NOT_FOUND"));
+    }
 
     @Test
     @DisplayName("Integração: POST /users deve criar usuário e retornar 201 com Location")
@@ -104,5 +140,34 @@ class UserControllerIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error_code").value("USER_NOT_FOUND"))
                 .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    @DisplayName("Integração: POST /users/{id}/roles/{roleId} deve retornar 204 No Content")
+    void testAssignRoleToUser() throws Exception {
+        doNothing().when(keycloakService).assignRoleToUser("user-1", "role-1");
+
+        mockMvc.perform(post("/users/user-1/roles/role-1"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("Integração: POST /users/{id}/roles/{roleId} quando role não existir deve retornar 404")
+    void testAssignRoleNotFound() throws Exception {
+        doThrow(new KeycloakException("ROLE_NOT_FOUND", "Cargo não encontrado", HttpStatus.NOT_FOUND))
+                .when(keycloakService).assignRoleToUser("user-1", "role-invalida");
+
+        mockMvc.perform(post("/users/user-1/roles/role-invalida"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error_code").value("ROLE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("Integração: DELETE /users/{id}/roles/{roleId} deve retornar 204 No Content")
+    void testRemoveRoleFromUser() throws Exception {
+        doNothing().when(keycloakService).removeRoleFromUser("user-1", "role-1");
+
+        mockMvc.perform(delete("/users/user-1/roles/role-1"))
+                .andExpect(status().isNoContent());
     }
 }

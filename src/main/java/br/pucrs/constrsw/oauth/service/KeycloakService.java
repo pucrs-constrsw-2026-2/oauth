@@ -14,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.core.ParameterizedTypeReference;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -230,6 +232,210 @@ public class KeycloakService {
             throw new KeycloakException("KEYCLOAK_PASSWORD_RESET_FAILED", "Falha ao atualizar senha: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
         }
     }
+
+    /**
+     * GET /users (filtro ?enabled=): Consumir API do Keycloak passando parâmetros de busca.
+     */
+    public List<UserResponse> getUsers(Boolean enabled) {
+        String adminToken = getAdminToken();
+        String usersUrl = String.format("%s/admin/realms/%s/users", keycloakUrl, realm);
+        if (enabled != null) {
+            usersUrl += "?enabled=" + enabled;
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                    usersUrl,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+            );
+
+            List<Map<String, Object>> body = response.getBody();
+            if (body == null) {
+                return Collections.emptyList();
+            }
+
+            return body.stream().map(u -> new UserResponse(
+                    (String) u.get("id"),
+                    (String) u.get("username"),
+                    (String) u.get("email"),
+                    (String) u.get("firstName"),
+                    (String) u.get("lastName"),
+                    (Boolean) u.get("enabled")
+            )).collect(Collectors.toList());
+        } catch (HttpClientErrorException e) {
+            log.error("Erro ao buscar lista de usuários no Keycloak: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_GET_USERS_ERROR", "Erro ao buscar usuários no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (Exception e) {
+            log.error("Erro inesperado ao listar usuários no Keycloak: {}", e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_GET_USERS_FAILED", "Falha ao listar usuários: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * GET /users/{id}: Busca simples de usuário por ID.
+     */
+    public UserResponse getUserById(String userId) {
+        String adminToken = getAdminToken();
+        String userUrl = String.format("%s/admin/realms/%s/users/%s", keycloakUrl, realm, userId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    userUrl,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+
+            Map<String, Object> u = response.getBody();
+            if (u == null) {
+                throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND);
+            }
+
+            return new UserResponse(
+                    (String) u.get("id"),
+                    (String) u.get("username"),
+                    (String) u.get("email"),
+                    (String) u.get("firstName"),
+                    (String) u.get("lastName"),
+                    (Boolean) u.get("enabled")
+            );
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("Usuário id='{}' não encontrado no Keycloak", userId);
+            throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            log.error("Erro ao buscar usuário id='{}' no Keycloak: status={}, body={}", userId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_GET_USER_ERROR", "Erro ao buscar usuário no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro inesperado ao buscar usuário id='{}': {}", userId, e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_GET_USER_FAILED", "Falha ao buscar usuário: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * POST /users/{id}/roles/{roleId}: Atribuir uma Role a um usuário (usa a API de role-mapping do Keycloak).
+     */
+    public void assignRoleToUser(String userId, String roleId) {
+        String adminToken = getAdminToken();
+
+        // 1. Obter a Role Representation por roleId
+        Map<String, Object> roleRepresentation = getRoleById(adminToken, roleId);
+
+        // 2. POST /admin/realms/{realm}/users/{id}/role-mappings/realm
+        String mappingUrl = String.format("%s/admin/realms/%s/users/%s/role-mappings/realm", keycloakUrl, realm, userId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        HttpEntity<List<Map<String, Object>>> entity = new HttpEntity<>(List.of(roleRepresentation), headers);
+
+        try {
+            restTemplate.postForEntity(mappingUrl, entity, Void.class);
+            log.info("Role id='{}' atribuída com sucesso ao usuário id='{}'", roleId, userId);
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("Usuário id='{}' não encontrado para atribuição de role", userId);
+            throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            log.error("Erro ao atribuir role id='{}' para o usuário id='{}': status={}, body={}", roleId, userId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_ASSIGN_ROLE_ERROR", "Erro ao atribuir role ao usuário", (HttpStatus) e.getStatusCode(), e);
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro inesperado ao atribuir role id='{}' ao usuário id='{}': {}", roleId, userId, e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_ASSIGN_ROLE_FAILED", "Falha ao atribuir role: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * DELETE /users/{id}/roles/{roleId}: Remover uma Role de um usuário.
+     */
+    public void removeRoleFromUser(String userId, String roleId) {
+        String adminToken = getAdminToken();
+
+        // 1. Obter a Role Representation por roleId
+        Map<String, Object> roleRepresentation = getRoleById(adminToken, roleId);
+
+        // 2. DELETE /admin/realms/{realm}/users/{id}/role-mappings/realm
+        String mappingUrl = String.format("%s/admin/realms/%s/users/%s/role-mappings/realm", keycloakUrl, realm, userId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        HttpEntity<List<Map<String, Object>>> entity = new HttpEntity<>(List.of(roleRepresentation), headers);
+
+        try {
+            restTemplate.exchange(mappingUrl, HttpMethod.DELETE, entity, Void.class);
+            log.info("Role id='{}' removida com sucesso do usuário id='{}'", roleId, userId);
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("Usuário id='{}' não encontrado para remoção de role", userId);
+            throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            log.error("Erro ao remover role id='{}' do usuário id='{}': status={}, body={}", roleId, userId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_REMOVE_ROLE_ERROR", "Erro ao remover role do usuário", (HttpStatus) e.getStatusCode(), e);
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro inesperado ao remover role id='{}' do usuário id='{}': {}", roleId, userId, e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_REMOVE_ROLE_FAILED", "Falha ao remover role: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * Busca os metadados de uma role no Keycloak por seu roleId (/roles-by-id/{roleId}).
+     */
+    private Map<String, Object> getRoleById(String adminToken, String roleId) {
+        String roleUrl = String.format("%s/admin/realms/%s/roles-by-id/%s", keycloakUrl, realm, roleId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    roleUrl,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            Map<String, Object> body = response.getBody();
+            if (body == null) {
+                throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND);
+            }
+            return body;
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("Role id='{}' não encontrada no Keycloak", roleId);
+            throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            log.error("Erro ao buscar role id='{}': status={}, body={}", roleId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_GET_ROLE_ERROR", "Erro ao consultar cargo no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        }
+    }
+
 
     /**
      * Valida se o token é válido (verificando formato JWT, emissor, expiração e integridade com Keycloak).
