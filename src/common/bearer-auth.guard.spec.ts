@@ -13,6 +13,7 @@ import {
   AuthenticatedUser,
   KeycloakTokenVerifierService,
 } from './keycloak-token-verifier.service';
+import { AdministratorRoleGuard } from './administrator-role.guard';
 
 function contextWith(
   authorization?: string,
@@ -124,5 +125,24 @@ describe('BearerAuthGuard', () => {
 
     // 403 belongs to Keycloak, on the Admin API call the route makes.
     await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it('overlays JWT client roles onto UserInfo so the administrator guard can see them', async () => {
+    verify.mockResolvedValue(caller);
+    const payload = Buffer.from(
+      JSON.stringify({
+        resource_access: { oauth: { roles: ['administrator'] } },
+      }),
+    ).toString('base64url');
+    const token = `eyJhbGciOiJub25lIn0.${payload}.sig`;
+    const { context, request } = contextWith(`Bearer ${token}`);
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(request.user?.raw.resource_access).toEqual({
+      oauth: { roles: ['administrator'] },
+    });
+    expect(() =>
+      new AdministratorRoleGuard().canActivate(context),
+    ).not.toThrow();
   });
 });

@@ -49,6 +49,7 @@ describe('KeycloakTokenClient', () => {
       );
       const sentBody = new URLSearchParams(init.body as string);
       expect(sentBody.get('grant_type')).toBe('password');
+      expect(sentBody.get('scope')).toBe('openid');
       expect(sentBody.get('client_id')).toBe('oauth');
       expect(sentBody.get('client_secret')).toBe('super-secret');
       expect(sentBody.get('username')).toBe('aluno@pucrs.br');
@@ -149,6 +150,7 @@ describe('KeycloakTokenClient', () => {
       const [, init] = fetchMock.mock.calls[0];
       const sentBody = new URLSearchParams(init.body as string);
       expect(sentBody.get('grant_type')).toBe('refresh_token');
+      expect(sentBody.get('scope')).toBe('openid');
       expect(sentBody.get('client_id')).toBe('oauth');
       expect(sentBody.get('client_secret')).toBe('super-secret');
       expect(sentBody.get('refresh_token')).toBe('old-refresh-token');

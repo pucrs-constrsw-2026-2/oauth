@@ -47,6 +47,11 @@ export class KeycloakTokenClient {
     const form = new URLSearchParams({
       client_id: this.keycloak.clientId,
       client_secret: this.keycloak.clientSecret,
+      // UserInfo (Bearer guard on /users, /roles, /authz/validate) requires an
+      // access token issued with the openid scope. Password/refresh grants
+      // without it still return tokens, but Keycloak then rejects them as
+      // "invalid" on UserInfo — which this API surfaces as OA-401.
+      scope: 'openid',
       ...fields,
     });
 

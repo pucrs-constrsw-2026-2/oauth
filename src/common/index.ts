@@ -1,3 +1,4 @@
+export * from './jwt-payload';
 export * from './bearer-auth.guard';
 export * from './administrator-role.guard';
 export * from './common.module';

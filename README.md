@@ -95,6 +95,10 @@ Exchanges username/password for Keycloak tokens (Story 2.1, CAP-1). No
   are **accepted and silently ignored** — the client credentials sent to
   Keycloak always come from `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET`,
   never from the request.
+- **Scope**: the service always adds `scope=openid` on the Keycloak token
+  call (not taken from the caller). Access tokens without `openid` are
+  rejected by UserInfo, so `/users`, `/roles` and `/authz/validate` would
+  all answer `OA-401` even though `/login` succeeded.
 - **Success**: `200` (not `201` — nothing is created) with JSON:
 
   ```json
@@ -464,9 +468,15 @@ shows a JSON example.
 ## Users
 
 All user routes require the shared Bearer guard **and the `administrator` client
-role**, the same rule the role routes use. Because the service authenticates to
-the Admin API with `KEYCLOAK_ADMIN`, Keycloak itself would never answer `403` —
-so that check is what makes the "known caller, not permitted" case observable.
+role** on client `oauth` (same rule as `/roles`). UserInfo is used only to prove
+the token is still valid; the client role is read from the **access token**
+(`resource_access.oauth.roles`), because UserInfo does not include it. Without
+that overlay, `admin@pucrs.br` would get `403` on `/users` even after a
+successful login. A student token still gets `403`.
+
+Because the service authenticates to the Admin API with `KEYCLOAK_ADMIN`,
+Keycloak itself would never answer `403` — so this check is what makes the
+"known caller, not permitted" case observable.
 
 JSON fields use the hyphenated names from the brief (`first-name`, `last-name`),
 which differ from Keycloak's own `firstName` / `lastName`.
@@ -534,9 +544,9 @@ The canonical role names are `administrator`, `coordinator`, `professor`, and
 depend on them. Logical deletion never calls Keycloak DELETE; it sets the client
 role attribute `inactive=true` and is idempotent.
 
-Authorization checks `resource_access.oauth.roles` and accepts `administrator`
-there; `realm_access.roles` is also accepted for compatibility with Keycloak
-token mappings.
+Authorization checks `resource_access.oauth.roles` on the **access token**
+(after UserInfo has accepted it) and requires `administrator` there. A realm
+role named `administrator` without the oauth **client** role is not enough.
 
 `PUT /roles/:id` requires a complete replacement body with `name` and may
 replace `description` and `attributes`. `PATCH /roles/:id` accepts a non-empty
