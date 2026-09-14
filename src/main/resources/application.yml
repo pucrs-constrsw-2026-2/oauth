@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: ${OAUTH_INTERNAL_API_PORT:8081}
 
 keycloak:
@@ -21,11 +21,18 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,prometheus
+        include: health,prometheus,info,metrics
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
   metrics:
     tags:
       application: oauth-api
   tracing:
     sampling:
       probability: 1.0
-
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}

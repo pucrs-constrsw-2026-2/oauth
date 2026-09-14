@@ -3,6 +3,7 @@ package br.pucrs.constrsw.oauth.controller;
 import br.pucrs.constrsw.oauth.dto.ValidateRequest;
 import br.pucrs.constrsw.oauth.dto.ValidateResponse;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,9 +20,11 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final KeycloakService keycloakService;
+    private final MeterRegistry meterRegistry;
 
-    public AuthController(KeycloakService keycloakService) {
+    public AuthController(KeycloakService keycloakService, MeterRegistry meterRegistry) {
         this.keycloakService = keycloakService;
+        this.meterRegistry = meterRegistry;
     }
 
     @GetMapping("/health")
@@ -47,12 +50,14 @@ public class AuthController {
     private ResponseEntity<ValidateResponse> executeValidation(String authHeader, String resource) {
         if (authHeader == null || authHeader.isBlank()) {
             log.warn("Tentativa de validação sem cabeçalho Authorization");
+            meterRegistry.counter("oauth.validations.denied", "reason", "missing_header").increment();
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ValidateResponse.forbidden("Authorization header is missing", null, resource, List.of()));
         }
 
         if (resource == null || resource.isBlank()) {
             log.warn("Tentativa de validação sem informar o recurso");
+            meterRegistry.counter("oauth.validations.denied", "reason", "missing_resource").increment();
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ValidateResponse.forbidden("Resource must be specified", null, null, List.of()));
         }
@@ -61,6 +66,7 @@ public class AuthController {
         boolean isTokenValid = keycloakService.isTokenValidWithKeycloak(authHeader);
         if (!isTokenValid) {
             log.warn("Access token inválido ou expirado");
+            meterRegistry.counter("oauth.validations.denied", "reason", "invalid_token").increment();
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ValidateResponse.forbidden("Invalid or expired access token", null, resource, List.of()));
         }
@@ -74,9 +80,12 @@ public class AuthController {
 
         if (hasAccess) {
             log.info("Usuário '{}' autorizado com sucesso para o recurso '{}'", username, resource);
+            meterRegistry.counter("oauth.validations.total", "status", "allowed", "resource", resource).increment();
             return ResponseEntity.ok(ValidateResponse.allowed(username, resource, roles));
         } else {
             log.warn("Usuário '{}' não possui role para acessar o recurso '{}'. Roles: {}", username, resource, roles);
+            meterRegistry.counter("oauth.validations.denied", "reason", "unauthorized_role").increment();
+            meterRegistry.counter("oauth.validations.total", "status", "forbidden", "resource", resource).increment();
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ValidateResponse.forbidden("User roles do not grant access to the requested resource", username, resource, roles));
         }
