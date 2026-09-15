@@ -1,85 +1,193 @@
 # OAuth ConstrSW
 
-Gateway autocontido de identidade institucional para o laboratório Closed CRAS.
+Gateway autocontido de identidade institucional do ConstrSW.
 
 ## Arquitetura
 
-O módulo `backend/oauth` é um gateway de autenticação entre o cliente da aplicação e o Keycloak. O browser fala apenas com este serviço; o serviço, por sua vez, chama o endpoint OIDC de token do Keycloak usando Direct Access Grant e devolve somente metadados da sessão para o consumidor.
+O módulo `backend/oauth` é um gateway entre o cliente da aplicação e o Keycloak.
+O browser fala apenas com este serviço; o serviço, por sua vez, chama o Keycloak
+(endpoint OIDC de token para login e a Admin REST API para roles) e devolve ao
+consumidor apenas o que ele precisa.
 
-A infraestrutura local é composta por dois containers principais, orquestrados pelo `docker-compose.yml` da raiz:
+A infraestrutura local é composta por dois containers principais, orquestrados
+pelo `docker-compose.yml` da raiz:
 
-- `keycloak`: sobe a partir de uma imagem customizada que empacota o realm local `constrsw.json`, expõe o console/admin e fornece os tokens JWT.
-- `oauth`: sobe a API NestJS que implementa login, refresh, logout e healthcheck, usando o Keycloak como provedor externo.
+- `keycloak`: sobe a partir de uma imagem customizada que importa o realm local
+  `constrsw` (`infrastructure/dev.local/services/keycloak/constrsw.json`), expõe
+  o console/admin e emite os tokens JWT.
+- `oauth`: sobe a API NestJS que implementa login, refresh, logout, healthcheck
+  e o CRUD de roles, usando o Keycloak como provedor externo.
 
-Os dois serviços compartilham a rede `constrsw`, e o OAuth depende de um Keycloak saudável antes de iniciar. O estado do realm fica persistido no volume externo `constrsw-keycloak-data`, então a importação inicial acontece uma vez e depois o volume mantém a configuração.
+Os dois serviços compartilham a rede `constrsw`, e o `oauth` depende de um
+Keycloak saudável antes de iniciar. O estado do realm fica persistido no volume
+externo `constrsw-keycloak-data`; a importação inicial acontece uma vez e depois
+o volume mantém a configuração.
 
 ## Tecnologias utilizadas
 
-- Node.js 24.19.0
-- NestJS 11
-- TypeScript 6
-- Keycloak 26
+- Node.js 24 / NestJS 11 / TypeScript
+- Keycloak 26 (realm `constrsw`)
 - Docker e Docker Compose
-- `class-validator` e `class-transformer` para validação dos payloads
-- `cookie-parser` para leitura do cookie de sessão
-- Swagger/OpenAPI para documentação da API
+- `class-validator` / `class-transformer` para validação de payloads
+- `cookie-parser` para o cookie de sessão
+- Swagger/OpenAPI para documentação (`/docs`)
+- Jest + Supertest para testes unitários e de integração
 
 ## Decisões importantes
 
-- **O login pertence a este módulo.** O `backend/oauth` é um serviço executável e autocontido. A rota pública é `POST /v1/auth/login`; não existe login no BFF. **Justificativa:** a decisão atual elimina a duplicação de clientes Keycloak e deixa autenticação, sessão e configuração em um único lugar. Isso torna o módulo fácil de subir isoladamente e reduz o risco de cada contexto criar uma interpretação diferente do login.
-- **O browser nunca chama o Keycloak.** O serviço faz o Direct Access Grant internamente e guarda access token e refresh token em cookie `httpOnly`. Assim, tokens não ficam expostos ao JavaScript nem ao `localStorage`. **Justificativa:** o browser conhece apenas a API da aplicação, o que reduz a superfície de exposição do IdP e evita espalhar URL, client secret ou regras de Keycloak pelo frontend. O trade-off é que a API precisa cuidar de refresh, logout e configuração de cookie.
-- **`client_credentials` não autentica pessoas.** Esse fluxo fica reservado para futuras chamadas internas administrativas, quando o ownership for confirmado. O login de usuário usa `grant_type=password` no cliente confidencial configurado em `KEYCLOAK_CLIENT_ID`. **Justificativa:** `client_credentials` identifica uma aplicação, não uma pessoa, portanto não pode representar o usuário institucional nem produzir uma sessão pessoal. Separar os fluxos também evita que uma credencial administrativa seja usada acidentalmente no caminho de login.
-- **Erros são seguros.** A API responde `application/problem+json` com `type`, `title`, `status`, `code` e `detail`. Nunca devolvemos senha, token, segredo, payload do Keycloak ou stack trace. **Justificativa:** mensagens do provedor podem conter detalhes úteis para um atacante, além de serem instáveis para consumidores. Um contrato pequeno e estável permite que frontend e demais contextos tratem `401`, `400` e `503` sem depender da implementação interna.
-- **O escopo é identidade.** CRUD de usuários, roles e role-mapping não faz parte desta base; eles serão adicionados somente com contrato próprio. **Justificativa:** login e infraestrutura transversal são pré-requisitos para as outras trilhas, enquanto CRUD exige decisões próprias de autorização, validação e ciclo de vida. Mantê-los fora evita transformar este primeiro serviço em um catálogo administrativo sem contrato fechado.
+- **O login pertence a este módulo.** A rota pública é `POST /v1/auth/login`;
+  não existe login no BFF. Isso elimina a duplicação de clientes Keycloak e deixa
+  autenticação, sessão e configuração num único lugar.
+- **O browser nunca chama o Keycloak.** O serviço faz o Direct Access Grant
+  internamente e guarda `access_token`/`refresh_token` em cookie `httpOnly`, de
+  modo que tokens não ficam expostos ao JavaScript nem ao `localStorage`.
+- **Operações administrativas usam um token de admin.** As rotas de roles falam
+  com a Admin REST API do Keycloak. Para isso o serviço obtém um token via
+  `grant_type=password` no cliente `admin-cli` do realm `master`, usando
+  `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD`. Esse caminho é separado do login
+  de usuário (que usa o cliente confidencial em `KEYCLOAK_CLIENT_ID`).
+- **Roles são realm roles do Keycloak.** O serviço não mantém banco próprio: o
+  CRUD de roles é um proxy sobre a Admin API. Como realm roles não têm exclusão
+  nativa, o `DELETE` é uma **exclusão lógica** (grava o atributo `deleted=true` no
+  role); roles marcados somem das leituras.
+- **Erros são seguros.** A API responde `application/problem+json` com `type`,
+  `title`, `status`, `code` (`OA-<status>`) e `detail`. Nunca devolvemos senha,
+  token, segredo, payload do Keycloak ou stack trace.
 
 ### Por que um serviço separado?
 
-O OAuth é autocontido porque precisa ser executado, testado e atualizado sem depender do código de um contexto de domínio. O serviço concentra a integração com o Keycloak, mas não se torna dono dos dados de usuários ou roles da aplicação. Essa separação permite que os demais módulos consumam uma fronteira estável e evita que cada equipe implemente seu próprio `fetch` para o provedor.
+O OAuth é autocontido porque precisa ser executado, testado e atualizado sem
+depender do código de um contexto de domínio. Ele concentra a integração com o
+Keycloak (login e administração de identidade), mas não vira dono dos dados de
+domínio da aplicação. Os demais módulos consomem uma fronteira estável em vez de
+cada equipe implementar seu próprio `fetch` para o provedor.
 
-### Fluxo de implementação
+## Rotas
 
-1. O cliente chama `POST /v1/auth/login` com `username` e `password`.
-2. O Nest valida o payload e envia `grant_type=password` para o Keycloak usando `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID` e `KEYCLOAK_CLIENT_SECRET`.
-3. Se o token for emitido, o serviço grava `access_token` e `refresh_token` em cookie `httpOnly` e retorna apenas `token_type`, `expires_in` e `refresh_expires_in`.
-4. O cliente renova a sessão em `POST /v1/auth/refresh`, que lê o cookie, usa `grant_type=refresh_token` e regrava a sessão.
-5. O logout em `POST /v1/auth/logout` apenas limpa o cookie local.
+### Autenticação (`/v1/auth`)
 
-As falhas do provedor são normalizadas em `application/problem+json`, sem vazar payload bruto, segredo ou stack trace.
+| Método | Rota      | Descrição                                        |
+| ------ | --------- | ------------------------------------------------ |
+| POST   | `/login`  | Autentica um usuário e grava a sessão em cookie. |
+| POST   | `/refresh`| Renova a sessão a partir do cookie.              |
+| POST   | `/logout` | Limpa o cookie de sessão.                        |
 
-Em produção, o segredo do cliente, as credenciais administrativas e o usuário demo devem vir de secret management. Os valores presentes no Compose existem apenas para desenvolvimento local e não devem ser reutilizados fora dele.
+### Roles (`/v1/roles`)
+
+| Método | Rota                      | Descrição                                    |
+| ------ | ------------------------- | -------------------------------------------- |
+| POST   | `/`                       | Cria um role. → `201`                        |
+| GET    | `/`                       | Lista os roles (exclui os excluídos).        |
+| GET    | `/{id}`                   | Recupera um role pelo id. → `404` se ausente |
+| PUT    | `/{id}`                   | Atualização total.                           |
+| PATCH  | `/{id}`                   | Atualização parcial.                         |
+| DELETE | `/{id}`                   | **Exclusão lógica.** → `204`                 |
+| POST   | `/{id}/users/{userId}`    | Atribui o role a um usuário. → `204`         |
+| DELETE | `/{id}/users/{userId}`    | Remove a atribuição. → `204`                 |
+
+As rotas de roles exigem as credenciais administrativas (`KEYCLOAK_ADMIN*`); sem
+elas o serviço não consegue token de admin e responde `503`.
+
+## Variáveis de ambiente
+
+| Variável                                  | Exemplo                | Uso                                  |
+| ----------------------------------------- | ---------------------- | ------------------------------------ |
+| `PORT`                                    | `8088`                 | Porta interna da API                 |
+| `KEYCLOAK_URL`                            | `http://keycloak:8080` | Base do Keycloak                     |
+| `KEYCLOAK_REALM`                          | `constrsw`             | Realm da aplicação                   |
+| `KEYCLOAK_CLIENT_ID` / `_SECRET`          | `oauth` / `…`          | Cliente usado no login               |
+| `KEYCLOAK_TIMEOUT_MS`                     | `5000`                 | Timeout das chamadas ao Keycloak     |
+| `KEYCLOAK_ADMIN` / `_PASSWORD`            | `admin` / `a12345678`  | Credenciais de admin (roles)         |
+| `KEYCLOAK_ADMIN_REALM` / `_CLIENT_ID`     | `master` / `admin-cli` | Onde/como obter o token de admin     |
+| `SESSION_COOKIE_NAME`                     | `closed_cras_session`  | Nome do cookie de sessão             |
+| `COOKIE_SECURE` / `COOKIE_SAME_SITE`      | `false` / `lax`        | Flags do cookie                      |
+
+Em produção, segredo do cliente e credenciais administrativas devem vir de
+secret management. Os valores no Compose existem apenas para desenvolvimento.
 
 ## Executar
 
-Requisitos: Node.js 24.19.0, npm e Docker Desktop.
+### Via Docker (recomendado)
 
-```powershell
-Copy-Item .env.example .env
-npm install
+A partir da **raiz do repositório** — sobe Keycloak (realm `constrsw`) e a API
+com a configuração consistente do `docker-compose.yml`:
+
+```bash
+docker volume create constrsw-keycloak-data   # apenas na primeira vez
+docker compose up -d --build --wait
+```
+
+Endereços: API `http://localhost:8181`, saúde `GET /health`, Swagger
+`http://localhost:8181/docs`, Keycloak `http://localhost:8081`.
+
+> Após mudar `.env` ou o compose, recrie o container:
+> `docker compose up -d --build --force-recreate oauth`.
+
+### Fora do container (opcional)
+
+Requer Node.js 24. Instale com `--legacy-peer-deps` (há um conflito de peers
+`typescript`/`ts-jest` conhecido nesta base):
+
+```bash
+cp .env.example .env
+npm install --legacy-peer-deps
 npm run start:dev
 ```
 
-A partir da raiz do repositório, para iniciar Keycloak e a API juntos:
+O `.env.example` já traz `KEYCLOAK_ADMIN*`, mas os valores de conexão apontam
+para nomes internos de container. Para rodar localmente **contra o Keycloak do
+Compose**, ajuste no seu `.env`:
 
-```powershell
-docker compose up --build
+```dotenv
+KEYCLOAK_URL=http://localhost:8081
+KEYCLOAK_REALM=constrsw
+KEYCLOAK_CLIENT_ID=oauth
+KEYCLOAK_CLIENT_SECRET=wsNXUxaupU9X6jCncsn3rOEy6PDt7oJO
+KEYCLOAK_ADMIN=admin
+KEYCLOAK_ADMIN_PASSWORD=a12345678
 ```
 
-Endereços locais: API `http://localhost:8181`, saúde `GET /health`, Swagger `http://localhost:8181/docs` e Keycloak `http://localhost:8081`.
+## Rodar os testes
 
-Usuário de demonstração: `demo@pucrs.br` / `demo`. Troque os segredos antes de qualquer ambiente compartilhado.
+```bash
+npm run test        # unitários (Jest)
+npm run test:e2e    # integração: sobe a app Nest e simula o Keycloak (não precisa de Keycloak vivo)
+npm run build       # compila/verifica tipos
+```
 
 ## Teste rápido
 
-```powershell
-Invoke-RestMethod -Method Post http://localhost:8181/v1/auth/login `
-	-ContentType 'application/json' `
-	-Body '{"username":"demo@pucrs.br","password":"demo"}'
+Com o stack no ar (as rotas de roles não exigem login):
+
+```bash
+BASE=http://localhost:8181
+
+# Criar um role → 201 com { id, name, description }
+curl -i -X POST $BASE/v1/roles -H 'content-type: application/json' \
+  -d '{"name":"professor","description":"Docente"}'
+
+# Listar / buscar / excluir logicamente
+curl -s  $BASE/v1/roles | jq
+curl -i -X DELETE $BASE/v1/roles/<ID>   # 204
+curl -i $BASE/v1/roles/<ID>             # 404 (some após a exclusão lógica)
 ```
 
-O corpo de sucesso contém apenas metadados da sessão. O cookie contém os tokens e é `httpOnly`.
+O realm `constrsw` já vem com usuários (`admin@pucrs.br`, `coordinator@pucrs.br`,
+`professor@pucrs.br`, `student@pucrs.br`); as senhas são gerenciadas no Keycloak
+(console em `http://localhost:8081`). Para testar o login, use um desses usuários:
+
+```bash
+curl -i -X POST $BASE/v1/auth/login -H 'content-type: application/json' \
+  -d '{"username":"professor@pucrs.br","password":"<senha-no-keycloak>"}'
+```
+
+O corpo de sucesso contém apenas metadados da sessão; os tokens ficam no cookie
+`httpOnly`.
 
 ## Contratos
 
-- `contracts/identity-gateway.yaml`: fragmento OpenAPI compartilhável.
-- `keycloak/realm-closed-cras.json`: realm local importável.
-- `Planning/Rotas.md`: documento legado do enunciado; não é fonte executável e contém decisões superadas.
+- `contracts/identity-gateway.yaml`: fragmento OpenAPI (login + rotas de roles).
+- `infrastructure/dev.local/services/keycloak/constrsw.json` (na raiz do repo):
+  realm importado pelo container do Keycloak.
+- `keycloak/realm-closed-cras.json`: realm legado de exemplo; **não** é o que sobe
+  em desenvolvimento (o realm ativo é `constrsw`).
