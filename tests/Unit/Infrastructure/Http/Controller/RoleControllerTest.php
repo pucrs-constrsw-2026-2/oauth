@@ -6,9 +6,12 @@ namespace App\Tests\Unit\Infrastructure\Http\Controller;
 
 use App\Application\DTO\Role\CreateRoleDTO;
 use App\Application\DTO\Role\RoleDTO;
+use App\Application\DTO\Role\UpdateRoleDTO;
 use App\Domain\Port\Inbound\CreateRoleUseCaseInterface;
+use App\Domain\Port\Inbound\DeleteRoleUseCaseInterface;
 use App\Domain\Port\Inbound\GetRoleByIdUseCaseInterface;
 use App\Domain\Port\Inbound\ListRolesUseCaseInterface;
+use App\Domain\Port\Inbound\UpdateRoleUseCaseInterface;
 use App\Infrastructure\Http\Controller\RoleController;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,6 +22,8 @@ final class RoleControllerTest extends TestCase
     private CreateRoleUseCaseInterface $createRoleUseCase;
     private ListRolesUseCaseInterface $listRolesUseCase;
     private GetRoleByIdUseCaseInterface $getRoleByIdUseCase;
+    private UpdateRoleUseCaseInterface $updateRoleUseCase;
+    private DeleteRoleUseCaseInterface $deleteRoleUseCase;
     private RoleController $controller;
 
     protected function setUp(): void
@@ -26,11 +31,15 @@ final class RoleControllerTest extends TestCase
         $this->createRoleUseCase = $this->createMock(CreateRoleUseCaseInterface::class);
         $this->listRolesUseCase = $this->createMock(ListRolesUseCaseInterface::class);
         $this->getRoleByIdUseCase = $this->createMock(GetRoleByIdUseCaseInterface::class);
+        $this->updateRoleUseCase = $this->createMock(UpdateRoleUseCaseInterface::class);
+        $this->deleteRoleUseCase = $this->createMock(DeleteRoleUseCaseInterface::class);
 
         $this->controller = new RoleController(
             $this->createRoleUseCase,
             $this->listRolesUseCase,
-            $this->getRoleByIdUseCase
+            $this->getRoleByIdUseCase,
+            $this->updateRoleUseCase,
+            $this->deleteRoleUseCase
         );
     }
 
@@ -107,5 +116,75 @@ final class RoleControllerTest extends TestCase
         $data = json_decode((string) $response->getContent(), true);
         $this->assertSame('uuid-123', $data['id']);
         $this->assertSame('coordinator', $data['name']);
+    }
+
+    public function testUpdateReturns200WithRoleJson(): void
+    {
+        $roleDTO = new RoleDTO(
+            id: 'uuid-123',
+            name: 'coordinator-updated',
+            description: 'Updated desc',
+            enabled: true
+        );
+
+        $this->updateRoleUseCase
+            ->expects($this->once())
+            ->method('execute')
+            ->with('uuid-123', $this->callback(function (UpdateRoleDTO $dto) {
+                return $dto->name === 'coordinator-updated' && $dto->description === 'Updated desc';
+            }), false)
+            ->willReturn($roleDTO);
+
+        $request = new Request(
+            content: json_encode(['name' => 'coordinator-updated', 'description' => 'Updated desc'], JSON_THROW_ON_ERROR)
+        );
+
+        $response = $this->controller->update('uuid-123', $request);
+
+        $this->assertSame(Response::HTTP_OK, $response->getStatusCode());
+        $data = json_decode((string) $response->getContent(), true);
+        $this->assertSame('uuid-123', $data['id']);
+        $this->assertSame('coordinator-updated', $data['name']);
+    }
+
+    public function testPatchReturns200WithRoleJson(): void
+    {
+        $roleDTO = new RoleDTO(
+            id: 'uuid-123',
+            name: 'coordinator',
+            description: 'Patched desc',
+            enabled: true
+        );
+
+        $this->updateRoleUseCase
+            ->expects($this->once())
+            ->method('execute')
+            ->with('uuid-123', $this->callback(function (UpdateRoleDTO $dto) {
+                return $dto->description === 'Patched desc';
+            }), true)
+            ->willReturn($roleDTO);
+
+        $request = new Request(
+            content: json_encode(['description' => 'Patched desc'], JSON_THROW_ON_ERROR)
+        );
+
+        $response = $this->controller->patch('uuid-123', $request);
+
+        $this->assertSame(Response::HTTP_OK, $response->getStatusCode());
+        $data = json_decode((string) $response->getContent(), true);
+        $this->assertSame('uuid-123', $data['id']);
+        $this->assertSame('Patched desc', $data['description']);
+    }
+
+    public function testDeleteReturns204WithEmptyBody(): void
+    {
+        $this->deleteRoleUseCase
+            ->expects($this->once())
+            ->method('execute')
+            ->with('uuid-123');
+
+        $response = $this->controller->delete('uuid-123');
+
+        $this->assertSame(Response::HTTP_NO_CONTENT, $response->getStatusCode());
     }
 }

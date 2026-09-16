@@ -6,6 +6,7 @@ namespace App\Domain\Port\Outbound;
 
 use App\Application\DTO\Role\CreateRoleDTO;
 use App\Application\DTO\Role\RoleDTO;
+use App\Application\DTO\Role\UpdateRoleDTO;
 
 interface KeycloakRolePortInterface
 {
@@ -17,4 +18,8 @@ interface KeycloakRolePortInterface
     public function listActiveRoles(): array;
 
     public function getRoleById(string $id): ?RoleDTO;
+
+    public function updateRole(string $id, UpdateRoleDTO $dto): RoleDTO;
+
+    public function disableRole(string $id): void;
 }

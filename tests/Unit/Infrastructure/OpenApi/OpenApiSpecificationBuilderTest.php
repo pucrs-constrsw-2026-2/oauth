@@ -53,6 +53,9 @@ final class OpenApiSpecificationBuilderTest extends TestCase
         $this->assertArrayHasKey('get', $paths['/roles']);
         $this->assertArrayHasKey('/roles/{id}', $paths);
         $this->assertArrayHasKey('get', $paths['/roles/{id}']);
+        $this->assertArrayHasKey('put', $paths['/roles/{id}']);
+        $this->assertArrayHasKey('patch', $paths['/roles/{id}']);
+        $this->assertArrayHasKey('delete', $paths['/roles/{id}']);
         $this->assertArrayHasKey('/authorize', $paths);
         $this->assertArrayHasKey('/health', $paths);
 
@@ -61,6 +64,21 @@ final class OpenApiSpecificationBuilderTest extends TestCase
         $this->assertSame(['Roles'], $roleCreateOp['tags']);
         $this->assertArrayHasKey('security', $roleCreateOp);
         $this->assertArrayHasKey('201', $roleCreateOp['responses']);
+
+        $roleUpdateOp = $paths['/roles/{id}']['put'];
+        $this->assertSame(['Roles'], $roleUpdateOp['tags']);
+        $this->assertArrayHasKey('security', $roleUpdateOp);
+        $this->assertArrayHasKey('200', $roleUpdateOp['responses']);
+
+        $rolePatchOp = $paths['/roles/{id}']['patch'];
+        $this->assertSame(['Roles'], $rolePatchOp['tags']);
+        $this->assertArrayHasKey('security', $rolePatchOp);
+        $this->assertArrayHasKey('200', $rolePatchOp['responses']);
+
+        $roleDeleteOp = $paths['/roles/{id}']['delete'];
+        $this->assertSame(['Roles'], $roleDeleteOp['tags']);
+        $this->assertArrayHasKey('security', $roleDeleteOp);
+        $this->assertArrayHasKey('204', $roleDeleteOp['responses']);
 
         // Valida endpoint de autorização (FR-10)
         $authzOp = $paths['/authorize']['post'];
@@ -89,6 +107,8 @@ final class OpenApiSpecificationBuilderTest extends TestCase
         $this->assertArrayHasKey('UserResponse', $schemas);
         $this->assertArrayHasKey('CreateRoleRequest', $schemas);
         $this->assertArrayHasKey('RoleResponse', $schemas);
+        $this->assertArrayHasKey('UpdateRoleRequest', $schemas);
+        $this->assertArrayHasKey('PatchRoleRequest', $schemas);
         $this->assertArrayHasKey('AuthorizeRequest', $schemas);
         $this->assertArrayHasKey('AuthorizeResponse', $schemas);
         $this->assertArrayHasKey('HealthResponse', $schemas);

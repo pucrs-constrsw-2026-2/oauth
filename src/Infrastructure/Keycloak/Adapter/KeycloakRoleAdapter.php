@@ -6,7 +6,9 @@ namespace App\Infrastructure\Keycloak\Adapter;
 
 use App\Application\DTO\Role\CreateRoleDTO;
 use App\Application\DTO\Role\RoleDTO;
+use App\Application\DTO\Role\UpdateRoleDTO;
 use App\Domain\Exception\RoleAlreadyExistsException;
+use App\Domain\Exception\RoleNotFoundException;
 use App\Domain\Port\Outbound\KeycloakRolePortInterface;
 use App\Infrastructure\Keycloak\Client\KeycloakHttpClient;
 use RuntimeException;
@@ -60,7 +62,7 @@ final class KeycloakRoleAdapter implements KeycloakRolePortInterface
     {
         $response = $this->httpClient->requestAdmin(
             'GET',
-            $this->rolesAdminPath(),
+            $this->rolesAdminPath() . '?briefRepresentation=false',
             [],
             null,
             false
@@ -84,6 +86,96 @@ final class KeycloakRoleAdapter implements KeycloakRolePortInterface
 
     public function getRoleById(string $id): ?RoleDTO
     {
+        $roleData = $this->fetchRoleRaw($id);
+        if ($roleData === null || !$this->isRoleActive($roleData)) {
+            return null;
+        }
+
+        return $this->mapToDTO($roleData);
+    }
+
+    public function updateRole(string $id, UpdateRoleDTO $dto): RoleDTO
+    {
+        $roleData = $this->fetchRoleRaw($id);
+        if ($roleData === null || !$this->isRoleActive($roleData)) {
+            throw new RoleNotFoundException("Role '{$id}' não encontrado.");
+        }
+
+        $roleId = (string) ($roleData['id'] ?? $id);
+        $name = $dto->name !== null && trim($dto->name) !== '' ? trim($dto->name) : (string) ($roleData['name'] ?? '');
+        $description = $dto->description !== null ? $dto->description : ($roleData['description'] ?? null);
+
+        $attributes = is_array($roleData['attributes'] ?? null) ? $roleData['attributes'] : [];
+        $attributes['enabled'] = ['true'];
+
+        $payload = array_merge($roleData, [
+            'name' => $name,
+            'description' => $description ?? '',
+            'attributes' => $attributes,
+        ]);
+
+        $response = $this->httpClient->requestAdmin(
+            'PUT',
+            $this->rolesByIdAdminPath($roleId),
+            [],
+            json_encode($payload, JSON_THROW_ON_ERROR),
+            false
+        );
+
+        if ($response['status'] === 404) {
+            throw new RoleNotFoundException("Role '{$id}' não encontrado.");
+        }
+
+        if ($response['status'] === 409) {
+            throw new RoleAlreadyExistsException("Já existe um role com o nome '{$name}'.");
+        }
+
+        if ($response['status'] !== 200 && $response['status'] !== 204) {
+            throw new RuntimeException("Falha ao atualizar role no Keycloak. Status: {$response['status']}.");
+        }
+
+        return new RoleDTO(
+            id: $roleId,
+            name: $name,
+            description: $description !== null && $description !== '' ? $description : null,
+            enabled: true
+        );
+    }
+
+    public function disableRole(string $id): void
+    {
+        $roleData = $this->fetchRoleRaw($id);
+        if ($roleData === null || !$this->isRoleActive($roleData)) {
+            throw new RoleNotFoundException("Role '{$id}' não encontrado.");
+        }
+
+        $roleId = (string) ($roleData['id'] ?? $id);
+        $attributes = is_array($roleData['attributes'] ?? null) ? $roleData['attributes'] : [];
+        $attributes['enabled'] = ['false'];
+
+        $payload = array_merge($roleData, [
+            'attributes' => $attributes,
+        ]);
+
+        $response = $this->httpClient->requestAdmin(
+            'PUT',
+            $this->rolesByIdAdminPath($roleId),
+            [],
+            json_encode($payload, JSON_THROW_ON_ERROR),
+            false
+        );
+
+        if ($response['status'] === 404) {
+            throw new RoleNotFoundException("Role '{$id}' não encontrado.");
+        }
+
+        if ($response['status'] !== 200 && $response['status'] !== 204) {
+            throw new RuntimeException("Falha ao inativar role no Keycloak. Status: {$response['status']}.");
+        }
+    }
+
+    private function fetchRoleRaw(string $id): ?array
+    {
         $response = $this->httpClient->requestAdmin(
             'GET',
             $this->rolesByIdAdminPath($id),
@@ -92,17 +184,11 @@ final class KeycloakRoleAdapter implements KeycloakRolePortInterface
             false
         );
 
-        if ($response['status'] === 404 || empty($response['data']) || !is_array($response['data'])) {
-            return null;
+        if ($response['status'] === 200 && is_array($response['data']) && !empty($response['data'])) {
+            return $response['data'];
         }
 
-        $roleData = $response['data'];
-
-        if (!$this->isRoleActive($roleData)) {
-            return null;
-        }
-
-        return $this->mapToDTO($roleData);
+        return null;
     }
 
     private function lookupRoleByName(string $name): ?array

@@ -125,7 +125,7 @@ final class KeycloakRoleAdapterTest extends TestCase
         $this->httpClient
             ->expects($this->once())
             ->method('requestAdmin')
-            ->with('GET', 'admin/realms/constrsw/roles', [], null, false)
+            ->with('GET', 'admin/realms/constrsw/roles?briefRepresentation=false', [], null, false)
             ->willReturn([
                 'status' => 200,
                 'headers' => [],
@@ -238,6 +238,130 @@ final class KeycloakRoleAdapterTest extends TestCase
         $this->expectExceptionMessage('Token de serviço expirado ou sem permissão na Admin API.');
 
         $this->adapter->createRole($dto);
+    }
+
+    public function testUpdateRoleSuccess(): void
+    {
+        $dto = new \App\Application\DTO\Role\UpdateRoleDTO(
+            name: 'editor-chefe',
+            description: 'Editor Geral'
+        );
+
+        $this->httpClient
+            ->expects($this->exactly(2))
+            ->method('requestAdmin')
+            ->willReturnCallback(function (string $method, string $path, array $headers, ?string $body, bool $mapUserExceptions) {
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/roles-by-id/uuid-editor') {
+                    return [
+                        'status' => 200,
+                        'headers' => [],
+                        'data' => [
+                            'id' => 'uuid-editor',
+                            'name' => 'editor',
+                            'description' => 'Editor',
+                            'attributes' => ['enabled' => ['true']],
+                        ],
+                        'raw' => '',
+                    ];
+                }
+
+                if ($method === 'PUT' && $path === 'admin/realms/constrsw/roles-by-id/uuid-editor') {
+                    $decoded = json_decode((string) $body, true);
+                    $this->assertSame('editor-chefe', $decoded['name']);
+                    $this->assertSame('Editor Geral', $decoded['description']);
+                    $this->assertSame(['true'], $decoded['attributes']['enabled']);
+
+                    return [
+                        'status' => 204,
+                        'headers' => [],
+                        'data' => [],
+                        'raw' => '',
+                    ];
+                }
+
+                $this->fail("Chamada inesperada: {$method} {$path}");
+            });
+
+        $role = $this->adapter->updateRole('uuid-editor', $dto);
+
+        $this->assertSame('uuid-editor', $role->id);
+        $this->assertSame('editor-chefe', $role->name);
+        $this->assertSame('Editor Geral', $role->description);
+        $this->assertTrue($role->enabled);
+    }
+
+    public function testUpdateRoleThrowsRoleNotFoundExceptionWhenNotFound(): void
+    {
+        $dto = new \App\Application\DTO\Role\UpdateRoleDTO(name: 'novo');
+
+        $this->httpClient
+            ->expects($this->once())
+            ->method('requestAdmin')
+            ->willReturn([
+                'status' => 404,
+                'headers' => [],
+                'data' => [],
+                'raw' => '',
+            ]);
+
+        $this->expectException(\App\Domain\Exception\RoleNotFoundException::class);
+
+        $this->adapter->updateRole('inexistente', $dto);
+    }
+
+    public function testDisableRoleSuccess(): void
+    {
+        $this->httpClient
+            ->expects($this->exactly(2))
+            ->method('requestAdmin')
+            ->willReturnCallback(function (string $method, string $path, array $headers, ?string $body, bool $mapUserExceptions) {
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/roles-by-id/uuid-del') {
+                    return [
+                        'status' => 200,
+                        'headers' => [],
+                        'data' => [
+                            'id' => 'uuid-del',
+                            'name' => 'del-role',
+                            'attributes' => ['enabled' => ['true']],
+                        ],
+                        'raw' => '',
+                    ];
+                }
+
+                if ($method === 'PUT' && $path === 'admin/realms/constrsw/roles-by-id/uuid-del') {
+                    $decoded = json_decode((string) $body, true);
+                    $this->assertSame(['false'], $decoded['attributes']['enabled']);
+
+                    return [
+                        'status' => 204,
+                        'headers' => [],
+                        'data' => [],
+                        'raw' => '',
+                    ];
+                }
+
+                $this->fail("Chamada inesperada: {$method} {$path}");
+            });
+
+        $this->adapter->disableRole('uuid-del');
+        $this->assertTrue(true);
+    }
+
+    public function testDisableRoleThrowsRoleNotFoundExceptionWhenNotFound(): void
+    {
+        $this->httpClient
+            ->expects($this->once())
+            ->method('requestAdmin')
+            ->willReturn([
+                'status' => 404,
+                'headers' => [],
+                'data' => [],
+                'raw' => '',
+            ]);
+
+        $this->expectException(\App\Domain\Exception\RoleNotFoundException::class);
+
+        $this->adapter->disableRole('inexistente');
     }
 }
 

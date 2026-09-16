@@ -593,6 +593,37 @@ final class OpenApiSpecificationBuilder
                     ],
                 ],
             ],
+            'UpdateRoleRequest' => [
+                'type' => 'object',
+                'required' => ['name'],
+                'properties' => [
+                    'name' => [
+                        'type' => 'string',
+                        'description' => 'Novo nome do papel institucional.',
+                        'example' => 'gestor-academico',
+                    ],
+                    'description' => [
+                        'type' => 'string',
+                        'description' => 'Nova descrição do papel institucional.',
+                        'example' => 'Gestor do sistema acadêmico',
+                    ],
+                ],
+            ],
+            'PatchRoleRequest' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => [
+                        'type' => 'string',
+                        'description' => 'Novo nome do papel institucional (opcional).',
+                        'example' => 'gestor-academico',
+                    ],
+                    'description' => [
+                        'type' => 'string',
+                        'description' => 'Nova descrição do papel institucional (opcional).',
+                        'example' => 'Gestor com atribuições atualizadas',
+                    ],
+                ],
+            ],
             'AuthorizeRequest' => [
                 'type' => 'object',
                 'required' => ['resource'],
@@ -1156,6 +1187,156 @@ final class OpenApiSpecificationBuilder
                                     'schema' => ['$ref' => '#/components/schemas/RoleResponse'],
                                 ],
                             ],
+                        ],
+                        '404' => [
+                            'description' => 'Papel não encontrado no Keycloak.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                'put' => [
+                    'tags' => ['Roles'],
+                    'summary' => 'Atualizar papel integralmente (Role)',
+                    'description' => 'Atualiza todos os dados de um papel no Keycloak pelo identificador.',
+                    'security' => [
+                        ['bearerAuth' => []],
+                    ],
+                    'parameters' => [
+                        [
+                            'name' => 'id',
+                            'in' => 'path',
+                            'required' => true,
+                            'description' => 'Identificador único ou nome do papel no Keycloak.',
+                            'schema' => ['type' => 'string'],
+                        ],
+                    ],
+                    'requestBody' => [
+                        'required' => true,
+                        'description' => 'Dados completos para atualização do papel.',
+                        'content' => [
+                            'application/json' => [
+                                'schema' => ['$ref' => '#/components/schemas/UpdateRoleRequest'],
+                            ],
+                        ],
+                    ],
+                    'responses' => [
+                        '200' => [
+                            'description' => 'Papel atualizado com sucesso.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/RoleResponse'],
+                                ],
+                            ],
+                        ],
+                        '400' => [
+                            'description' => 'Dados inválidos ou nome não fornecido.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                        '404' => [
+                            'description' => 'Papel não encontrado no Keycloak.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                        '409' => [
+                            'description' => 'Já existe outro papel com o nome informado.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                'patch' => [
+                    'tags' => ['Roles'],
+                    'summary' => 'Atualizar papel parcialmente (Role)',
+                    'description' => 'Atualiza apenas os campos especificados do papel no Keycloak mantendo os demais inalterados.',
+                    'security' => [
+                        ['bearerAuth' => []],
+                    ],
+                    'parameters' => [
+                        [
+                            'name' => 'id',
+                            'in' => 'path',
+                            'required' => true,
+                            'description' => 'Identificador único ou nome do papel no Keycloak.',
+                            'schema' => ['type' => 'string'],
+                        ],
+                    ],
+                    'requestBody' => [
+                        'required' => true,
+                        'description' => 'Campos parciais para alteração do papel.',
+                        'content' => [
+                            'application/json' => [
+                                'schema' => ['$ref' => '#/components/schemas/PatchRoleRequest'],
+                            ],
+                        ],
+                    ],
+                    'responses' => [
+                        '200' => [
+                            'description' => 'Papel atualizado com sucesso.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/RoleResponse'],
+                                ],
+                            ],
+                        ],
+                        '400' => [
+                            'description' => 'Nenhum campo informado para alteração ou dados inválidos.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                        '404' => [
+                            'description' => 'Papel não encontrado no Keycloak.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                        '409' => [
+                            'description' => 'Já existe outro papel com o nome informado.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                'delete' => [
+                    'tags' => ['Roles'],
+                    'summary' => 'Inativar papel (Exclusão Lógica)',
+                    'description' => 'Realiza a exclusão lógica do papel institucional desabilitando-o (attributes.enabled = false), preservando histórico e integridade referencial.',
+                    'security' => [
+                        ['bearerAuth' => []],
+                    ],
+                    'parameters' => [
+                        [
+                            'name' => 'id',
+                            'in' => 'path',
+                            'required' => true,
+                            'description' => 'Identificador único ou nome do papel no Keycloak.',
+                            'schema' => ['type' => 'string'],
+                        ],
+                    ],
+                    'responses' => [
+                        '204' => [
+                            'description' => 'Papel inativado com sucesso (sem conteúdo).',
                         ],
                         '404' => [
                             'description' => 'Papel não encontrado no Keycloak.',

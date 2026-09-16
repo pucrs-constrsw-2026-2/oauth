@@ -65,6 +65,8 @@ services:
     App\Domain\Port\Inbound\CreateRoleUseCaseInterface: '@App\Application\UseCase\Role\CreateRoleUseCase'
     App\Domain\Port\Inbound\ListRolesUseCaseInterface: '@App\Application\UseCase\Role\ListRolesUseCase'
     App\Domain\Port\Inbound\GetRoleByIdUseCaseInterface: '@App\Application\UseCase\Role\GetRoleByIdUseCase'
+    App\Domain\Port\Inbound\UpdateRoleUseCaseInterface: '@App\Application\UseCase\Role\UpdateRoleUseCase'
+    App\Domain\Port\Inbound\DeleteRoleUseCaseInterface: '@App\Application\UseCase\Role\DeleteRoleUseCase'
 
     # Outbound Ports (Adapters) - Épico 6
     App\Domain\Port\Outbound\KeycloakRolePortInterface: '@App\Infrastructure\Keycloak\Adapter\KeycloakRoleAdapter'

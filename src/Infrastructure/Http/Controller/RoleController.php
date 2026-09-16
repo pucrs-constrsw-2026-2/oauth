@@ -6,9 +6,12 @@ namespace App\Infrastructure\Http\Controller;
 
 use App\Application\DTO\Role\CreateRoleDTO;
 use App\Application\DTO\Role\RoleDTO;
+use App\Application\DTO\Role\UpdateRoleDTO;
 use App\Domain\Port\Inbound\CreateRoleUseCaseInterface;
+use App\Domain\Port\Inbound\DeleteRoleUseCaseInterface;
 use App\Domain\Port\Inbound\GetRoleByIdUseCaseInterface;
 use App\Domain\Port\Inbound\ListRolesUseCaseInterface;
+use App\Domain\Port\Inbound\UpdateRoleUseCaseInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,7 +22,9 @@ final class RoleController extends AbstractController
     public function __construct(
         private readonly CreateRoleUseCaseInterface $createRoleUseCase,
         private readonly ListRolesUseCaseInterface $listRolesUseCase,
-        private readonly GetRoleByIdUseCaseInterface $getRoleByIdUseCase
+        private readonly GetRoleByIdUseCaseInterface $getRoleByIdUseCase,
+        private readonly UpdateRoleUseCaseInterface $updateRoleUseCase,
+        private readonly DeleteRoleUseCaseInterface $deleteRoleUseCase
     ) {
     }
 
@@ -48,6 +53,34 @@ final class RoleController extends AbstractController
         $role = $this->getRoleByIdUseCase->execute($id);
 
         return new JsonResponse($role->toArray(), JsonResponse::HTTP_OK);
+    }
+
+    #[Route('/roles/{id}', name: 'role_update', methods: ['PUT'])]
+    public function update(string $id, Request $request): JsonResponse
+    {
+        $data = $this->extractRequestData($request);
+        $dto = UpdateRoleDTO::fromArray($data);
+        $updatedRole = $this->updateRoleUseCase->execute($id, $dto, false);
+
+        return new JsonResponse($updatedRole->toArray(), JsonResponse::HTTP_OK);
+    }
+
+    #[Route('/roles/{id}', name: 'role_patch', methods: ['PATCH'])]
+    public function patch(string $id, Request $request): JsonResponse
+    {
+        $data = $this->extractRequestData($request);
+        $dto = UpdateRoleDTO::fromArray($data);
+        $updatedRole = $this->updateRoleUseCase->execute($id, $dto, true);
+
+        return new JsonResponse($updatedRole->toArray(), JsonResponse::HTTP_OK);
+    }
+
+    #[Route('/roles/{id}', name: 'role_delete', methods: ['DELETE'])]
+    public function delete(string $id): JsonResponse
+    {
+        $this->deleteRoleUseCase->execute($id);
+
+        return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);
     }
 
     private function extractRequestData(Request $request): array
