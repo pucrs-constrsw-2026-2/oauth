@@ -129,7 +129,7 @@ class KeycloakHttpClient
     /**
      * Executa requisição na Keycloak Admin API com Bearer token de serviço injetado
      */
-    public function requestAdmin(string $method, string $path, array $headers = [], ?string $body = null): array
+    public function requestAdmin(string $method, string $path, array $headers = [], ?string $body = null, bool $mapUserExceptions = true): array
     {
         $token = $this->getAdminToken();
         $headers['Authorization'] = "Bearer {$token}";
@@ -139,13 +139,15 @@ class KeycloakHttpClient
 
         $response = $this->request($method, $path, $headers, $body);
 
-        // Mapeia erros conhecidos da Admin API para exceções de domínio
-        if ($response['status'] === 404) {
-            throw new UserNotFoundException();
-        }
+        if ($mapUserExceptions) {
+            // Mapeia erros conhecidos da Admin API para exceções de domínio
+            if ($response['status'] === 404) {
+                throw new UserNotFoundException();
+            }
 
-        if ($response['status'] === 409) {
-            throw new UserAlreadyExistsException();
+            if ($response['status'] === 409) {
+                throw new UserAlreadyExistsException();
+            }
         }
 
         if ($response['status'] === 401) {

@@ -61,4 +61,13 @@ services:
     # Outbound Ports (Adapters) - Épico 4
     App\Domain\Port\Outbound\KeycloakAuthorizationPortInterface: '@App\Infrastructure\Keycloak\Adapter\KeycloakAuthorizationAdapter'
 
+    # Inbound Ports (Use Cases) - Épico 6
+    App\Domain\Port\Inbound\CreateRoleUseCaseInterface: '@App\Application\UseCase\Role\CreateRoleUseCase'
+    App\Domain\Port\Inbound\ListRolesUseCaseInterface: '@App\Application\UseCase\Role\ListRolesUseCase'
+    App\Domain\Port\Inbound\GetRoleByIdUseCaseInterface: '@App\Application\UseCase\Role\GetRoleByIdUseCase'
+
+    # Outbound Ports (Adapters) - Épico 6
+    App\Domain\Port\Outbound\KeycloakRolePortInterface: '@App\Infrastructure\Keycloak\Adapter\KeycloakRoleAdapter'
+
+
 
