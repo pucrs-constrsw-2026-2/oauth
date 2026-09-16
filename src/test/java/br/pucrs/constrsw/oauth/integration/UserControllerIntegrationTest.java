@@ -2,6 +2,7 @@ package br.pucrs.constrsw.oauth.integration;
 
 import br.pucrs.constrsw.oauth.dto.CreateUserRequest;
 import br.pucrs.constrsw.oauth.dto.UpdatePasswordRequest;
+import br.pucrs.constrsw.oauth.dto.UpdateUserRequest;
 import br.pucrs.constrsw.oauth.dto.UserResponse;
 import br.pucrs.constrsw.oauth.exception.KeycloakException;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
@@ -168,6 +169,29 @@ class UserControllerIntegrationTest {
         doNothing().when(keycloakService).removeRoleFromUser("user-1", "role-1");
 
         mockMvc.perform(delete("/users/user-1/roles/role-1"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("Integração: PUT /users/{id} deve atualizar dados cadastrais e retornar 200 OK")
+    void testUpdateUser() throws Exception {
+        UserResponse mockResponse = new UserResponse("user-1", "user1", "novo@pucrs.br", "NomeAtualizado", "Sobrenome", true);
+        when(keycloakService.updateUser(eq("user-1"), any(UpdateUserRequest.class))).thenReturn(mockResponse);
+
+        mockMvc.perform(put("/users/user-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"novo@pucrs.br\",\"first_name\":\"NomeAtualizado\",\"last_name\":\"Sobrenome\",\"enabled\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("novo@pucrs.br"))
+                .andExpect(jsonPath("$.first_name").value("NomeAtualizado"));
+    }
+
+    @Test
+    @DisplayName("Integração: DELETE /users/{id} deve realizar deleção lógica e retornar 204 No Content")
+    void testDeleteUser() throws Exception {
+        doNothing().when(keycloakService).logicalDeleteUser("user-1");
+
+        mockMvc.perform(delete("/users/user-1"))
                 .andExpect(status().isNoContent());
     }
 }

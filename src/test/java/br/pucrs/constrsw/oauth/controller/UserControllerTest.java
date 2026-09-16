@@ -2,6 +2,7 @@ package br.pucrs.constrsw.oauth.controller;
 
 import br.pucrs.constrsw.oauth.dto.CreateUserRequest;
 import br.pucrs.constrsw.oauth.dto.UpdatePasswordRequest;
+import br.pucrs.constrsw.oauth.dto.UpdateUserRequest;
 import br.pucrs.constrsw.oauth.dto.UserResponse;
 import br.pucrs.constrsw.oauth.exception.KeycloakException;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
@@ -179,5 +180,33 @@ class UserControllerTest {
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         assertEquals(1.0, meterRegistry.counter("oauth.users.roles.removed.total").count());
+    }
+
+    @Test
+    @DisplayName("Deveria atualizar dados do usuário via PUT e retornar 200 OK")
+    void testUpdateUserSuccess() {
+        UpdateUserRequest request = new UpdateUserRequest("novo.email@pucrs.br", "NovoNome", "NovoSobrenome", true);
+        UserResponse mockResponse = new UserResponse("user-1", "user1", "novo.email@pucrs.br", "NovoNome", "NovoSobrenome", true);
+
+        when(keycloakService.updateUser(eq("user-1"), any(UpdateUserRequest.class))).thenReturn(mockResponse);
+
+        ResponseEntity<UserResponse> response = userController.updateUser("user-1", request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("NovoNome", response.getBody().firstName());
+        assertEquals("novo.email@pucrs.br", response.getBody().email());
+        assertEquals(1.0, meterRegistry.counter("oauth.users.updated.total").count());
+    }
+
+    @Test
+    @DisplayName("Deveria realizar deleção lógica de usuário via DELETE e retornar 204 No Content")
+    void testLogicalDeleteUserSuccess() {
+        doNothing().when(keycloakService).logicalDeleteUser("user-1");
+
+        ResponseEntity<Void> response = userController.deleteUser("user-1");
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(1.0, meterRegistry.counter("oauth.users.deleted.total").count());
     }
 }

@@ -5,6 +5,7 @@ import br.pucrs.constrsw.oauth.dto.LoginRequest;
 import br.pucrs.constrsw.oauth.dto.LoginResponse;
 import br.pucrs.constrsw.oauth.dto.UpdatePasswordRequest;
 import br.pucrs.constrsw.oauth.dto.UserResponse;
+import br.pucrs.constrsw.oauth.dto.UpdateUserRequest;
 import br.pucrs.constrsw.oauth.dto.CreateRoleRequest;
 import br.pucrs.constrsw.oauth.dto.UpdateRoleRequest;
 import br.pucrs.constrsw.oauth.dto.PatchRoleRequest;
@@ -330,6 +331,130 @@ public class KeycloakService {
             throw new KeycloakException("KEYCLOAK_GET_USER_FAILED", "Falha ao buscar usuário: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
         }
     }
+
+    /**
+     * PUT /users/{id}: Atualizar dados de cadastro de um usuário.
+     */
+    public UserResponse updateUser(String userId, UpdateUserRequest request) {
+        String adminToken = getAdminToken();
+        Map<String, Object> existingUser = getUserMapById(adminToken, userId);
+
+        String userUrl = String.format("%s/admin/realms/%s/users/%s", keycloakUrl, realm, userId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        if (request.email() != null && !request.email().isBlank()) {
+            existingUser.put("email", request.email());
+        }
+        if (request.firstName() != null) {
+            existingUser.put("firstName", request.firstName());
+        }
+        if (request.lastName() != null) {
+            existingUser.put("lastName", request.lastName());
+        }
+        if (request.enabled() != null) {
+            existingUser.put("enabled", request.enabled());
+        }
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(existingUser, headers);
+
+        try {
+            restTemplate.put(userUrl, entity);
+            log.info("Cadastro do usuário id='{}' atualizado com sucesso no Keycloak", userId);
+            return getUserById(userId);
+        } catch (HttpClientErrorException.Conflict e) {
+            throw new KeycloakException("USER_ALREADY_EXISTS", "Email já cadastrado para outro usuário", HttpStatus.CONFLICT, e);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                throw new KeycloakException("USER_ALREADY_EXISTS", "Email já cadastrado para outro usuário", HttpStatus.CONFLICT, e);
+            }
+            log.error("Erro ao atualizar cadastro do usuário id='{}': status={}, body={}", userId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_UPDATE_USER_ERROR", "Erro ao atualizar usuário no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro inesperado ao atualizar usuário id='{}': {}", userId, e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_UPDATE_USER_FAILED", "Falha ao atualizar usuário: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * DELETE /users/{id}: Deleção lógica de usuário (Fazer GET, mudar enabled para false e devolver com PUT).
+     */
+    public void logicalDeleteUser(String userId) {
+        String adminToken = getAdminToken();
+        Map<String, Object> existingUser = getUserMapById(adminToken, userId);
+
+        String userUrl = String.format("%s/admin/realms/%s/users/%s", keycloakUrl, realm, userId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        // Mudar enabled para false
+        existingUser.put("enabled", false);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(existingUser, headers);
+
+        try {
+            restTemplate.put(userUrl, entity);
+            log.info("Deleção lógica do usuário id='{}' concluída com sucesso (enabled=false)", userId);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            log.error("Erro na deleção lógica do usuário id='{}': status={}, body={}", userId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_DELETE_USER_ERROR", "Erro ao desativar usuário no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro inesperado na deleção lógica do usuário id='{}': {}", userId, e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_DELETE_USER_FAILED", "Falha ao desativar usuário: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * Busca representação bruta em Map do usuário no Keycloak.
+     */
+    private Map<String, Object> getUserMapById(String adminToken, String userId) {
+        String userUrl = String.format("%s/admin/realms/%s/users/%s", keycloakUrl, realm, userId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    userUrl,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            Map<String, Object> body = response.getBody();
+            if (body == null) {
+                throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND);
+            }
+            return body;
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("Usuário id='{}' não encontrado no Keycloak", userId);
+            throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            throw new KeycloakException("KEYCLOAK_GET_USER_ERROR", "Erro ao buscar usuário no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        }
+    }
+
 
     /**
      * POST /users/{id}/roles/{roleId}: Atribuir uma Role a um usuário (usa a API de role-mapping do Keycloak).

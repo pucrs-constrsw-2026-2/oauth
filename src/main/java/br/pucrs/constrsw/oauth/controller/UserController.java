@@ -2,6 +2,7 @@ package br.pucrs.constrsw.oauth.controller;
 
 import br.pucrs.constrsw.oauth.dto.CreateUserRequest;
 import br.pucrs.constrsw.oauth.dto.UpdatePasswordRequest;
+import br.pucrs.constrsw.oauth.dto.UpdateUserRequest;
 import br.pucrs.constrsw.oauth.dto.UserResponse;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -63,6 +64,30 @@ public class UserController {
 
         URI location = URI.create("/users/" + response.id());
         return ResponseEntity.created(location).body(response);
+    }
+
+    /**
+     * PUT /users/{id}: Atualizar dados de cadastro de um usuário (first-name, last-name, email, enabled).
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<UserResponse> updateUser(
+            @PathVariable("id") String id,
+            @Valid @RequestBody UpdateUserRequest request) {
+        log.info("Requisição para atualização de cadastro do usuário id='{}'", id);
+        UserResponse updated = keycloakService.updateUser(id, request);
+        meterRegistry.counter("oauth.users.updated.total").increment();
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * DELETE /users/{id}: Deleção lógica de usuário (mudar enabled para false).
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable("id") String id) {
+        log.info("Requisição para deleção lógica do usuário id='{}'", id);
+        keycloakService.logicalDeleteUser(id);
+        meterRegistry.counter("oauth.users.deleted.total").increment();
+        return ResponseEntity.noContent().build();
     }
 
     /**
