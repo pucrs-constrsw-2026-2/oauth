@@ -48,8 +48,19 @@ final class OpenApiSpecificationBuilderTest extends TestCase
         $this->assertArrayHasKey('/me', $paths);
         $this->assertArrayHasKey('/users', $paths);
         $this->assertArrayHasKey('/users/{id}', $paths);
+        $this->assertArrayHasKey('/roles', $paths);
+        $this->assertArrayHasKey('post', $paths['/roles']);
+        $this->assertArrayHasKey('get', $paths['/roles']);
+        $this->assertArrayHasKey('/roles/{id}', $paths);
+        $this->assertArrayHasKey('get', $paths['/roles/{id}']);
         $this->assertArrayHasKey('/authorize', $paths);
         $this->assertArrayHasKey('/health', $paths);
+
+        // Valida endpoints de roles
+        $roleCreateOp = $paths['/roles']['post'];
+        $this->assertSame(['Roles'], $roleCreateOp['tags']);
+        $this->assertArrayHasKey('security', $roleCreateOp);
+        $this->assertArrayHasKey('201', $roleCreateOp['responses']);
 
         // Valida endpoint de autorização (FR-10)
         $authzOp = $paths['/authorize']['post'];
@@ -76,6 +87,8 @@ final class OpenApiSpecificationBuilderTest extends TestCase
         $this->assertArrayHasKey('UpdateUserRequest', $schemas);
         $this->assertArrayHasKey('UpdatePasswordRequest', $schemas);
         $this->assertArrayHasKey('UserResponse', $schemas);
+        $this->assertArrayHasKey('CreateRoleRequest', $schemas);
+        $this->assertArrayHasKey('RoleResponse', $schemas);
         $this->assertArrayHasKey('AuthorizeRequest', $schemas);
         $this->assertArrayHasKey('AuthorizeResponse', $schemas);
         $this->assertArrayHasKey('HealthResponse', $schemas);

@@ -58,6 +58,10 @@ final class OpenApiSpecificationBuilder
                     'description' => 'Endpoints de CRUD e administração do ciclo de vida de usuários no Keycloak.',
                 ],
                 [
+                    'name' => 'Roles',
+                    'description' => 'Endpoints de CRUD e administração de papéis institucionais no Keycloak.',
+                ],
+                [
                     'name' => 'Autorização',
                     'description' => 'Endpoint de validação de políticas e controle de acesso por recurso (FR-10).',
                 ],
@@ -188,6 +192,7 @@ final class OpenApiSpecificationBuilder
             $tag = match ($cleanTag) {
                 'Auth' => 'Autenticação',
                 'User' => 'Usuários',
+                'Role' => 'Roles',
                 'Authorization' => 'Autorização',
                 'Health' => 'Sistema',
                 default => $cleanTag,
@@ -534,6 +539,57 @@ final class OpenApiSpecificationBuilder
                         'items' => ['type' => 'string'],
                         'description' => 'Papéis institucionais atribuídos.',
                         'example' => ['professor'],
+                    ],
+                ],
+            ],
+            'CreateRoleRequest' => [
+                'type' => 'object',
+                'required' => ['name'],
+                'properties' => [
+                    'name' => [
+                        'type' => 'string',
+                        'description' => 'Nome único do papel institucional no Keycloak.',
+                        'example' => 'gestor',
+                    ],
+                    'description' => [
+                        'type' => 'string',
+                        'description' => 'Descrição das atribuições do papel.',
+                        'example' => 'Gestor do sistema acadêmico',
+                    ],
+                ],
+            ],
+            'RoleResponse' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => [
+                        'type' => 'string',
+                        'description' => 'Identificador único ou nome da role no Keycloak.',
+                        'example' => 'gestor',
+                    ],
+                    'name' => [
+                        'type' => 'string',
+                        'description' => 'Nome do papel institucional.',
+                        'example' => 'gestor',
+                    ],
+                    'description' => [
+                        'type' => 'string',
+                        'description' => 'Descrição do papel institucional.',
+                        'example' => 'Gestor do sistema acadêmico',
+                    ],
+                    'composite' => [
+                        'type' => 'boolean',
+                        'description' => 'Indica se o papel é composto por outros sub-papéis.',
+                        'example' => false,
+                    ],
+                    'clientRole' => [
+                        'type' => 'boolean',
+                        'description' => 'Indica se é um papel específico de client.',
+                        'example' => false,
+                    ],
+                    'containerId' => [
+                        'type' => 'string',
+                        'description' => 'ID do container ou realm no Keycloak.',
+                        'example' => 'constrsw',
                     ],
                 ],
             ],
@@ -1000,6 +1056,109 @@ final class OpenApiSpecificationBuilder
                         ],
                         '404' => [
                             'description' => 'Usuário não encontrado.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            '/roles' => [
+                'post' => [
+                    'tags' => ['Roles'],
+                    'summary' => 'Criar novo papel (Role)',
+                    'description' => 'Cria uma nova role institucional no realm do Keycloak.',
+                    'security' => [
+                        ['bearerAuth' => []],
+                    ],
+                    'requestBody' => [
+                        'required' => true,
+                        'description' => 'Dados da role a ser criada.',
+                        'content' => [
+                            'application/json' => [
+                                'schema' => ['$ref' => '#/components/schemas/CreateRoleRequest'],
+                            ],
+                        ],
+                    ],
+                    'responses' => [
+                        '201' => [
+                            'description' => 'Papel criado com sucesso.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/RoleResponse'],
+                                ],
+                            ],
+                        ],
+                        '400' => [
+                            'description' => 'Nome da role ausente ou formato inválido.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                        '409' => [
+                            'description' => 'Papel já existente no Keycloak.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                'get' => [
+                    'tags' => ['Roles'],
+                    'summary' => 'Listar todos os papéis (Roles)',
+                    'description' => 'Recupera os dados e descrições de todos os papéis institucionais cadastrados no Keycloak.',
+                    'security' => [
+                        ['bearerAuth' => []],
+                    ],
+                    'responses' => [
+                        '200' => [
+                            'description' => 'Lista de roles retornada com sucesso.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => [
+                                        'type' => 'array',
+                                        'items' => ['$ref' => '#/components/schemas/RoleResponse'],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            '/roles/{id}' => [
+                'get' => [
+                    'tags' => ['Roles'],
+                    'summary' => 'Buscar papel por identificador',
+                    'description' => 'Recupera os dados de um papel específico a partir do seu ID ou nome.',
+                    'security' => [
+                        ['bearerAuth' => []],
+                    ],
+                    'parameters' => [
+                        [
+                            'name' => 'id',
+                            'in' => 'path',
+                            'required' => true,
+                            'description' => 'Identificador único ou nome do papel no Keycloak.',
+                            'schema' => ['type' => 'string'],
+                        ],
+                    ],
+                    'responses' => [
+                        '200' => [
+                            'description' => 'Papel encontrado e retornado com sucesso.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/RoleResponse'],
+                                ],
+                            ],
+                        ],
+                        '404' => [
+                            'description' => 'Papel não encontrado no Keycloak.',
                             'content' => [
                                 'application/json' => [
                                     'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
