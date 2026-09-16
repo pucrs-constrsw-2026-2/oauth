@@ -31,6 +31,14 @@ This document provides the complete epic and story breakdown for oauth, decompos
 - **FR-8**: Atualização de Senha do Usuário (`PATCH /users/{id}` alterando credencial de senha na Admin API, retornando HTTP 200 OK ou 404 Not Found).
 - **FR-9**: Exclusão Lógica de Usuário (`DELETE /users/{id}` alterando `enabled = false` no Keycloak, retornando HTTP 204 No Content ou 404 Not Found).
 - **FR-10**: Validação de Acesso a Recurso (`POST /authorize` validando Bearer token e avaliando matriz de papéis `administrator`, `coordinator`, `professor`, `student` versus recursos `classes`, `courses`, `lessons`, `professors`, `reservations`, `resources`, `rooms`, `students`, retornando HTTP 200 OK ou 403 Forbidden).
+- **FR-11**: Criação de Role (`POST /roles` via Keycloak Admin API, retornando HTTP 201 Created com os dados e ID gerado).
+- **FR-12**: Listagem de Roles Ativas (`GET /roles` retornando HTTP 200 OK com array de papéis ativos).
+- **FR-13**: Consulta de Role por ID (`GET /roles/{id}` retornando HTTP 200 OK com os dados do role ou 404 Not Found).
+- **FR-14**: Atualização Completa de Role (`PUT /roles/{id}` atualizando atributos do papel na Admin API, retornando HTTP 200 OK ou 404 Not Found).
+- **FR-15**: Atualização Parcial de Role (`PATCH /roles/{id}` atualizando campos parciais na Admin API, retornando HTTP 200 OK ou 404 Not Found).
+- **FR-16**: Exclusão Lógica de Role (`DELETE /roles/{id}` inativando o papel no Keycloak sem remoção física, retornando HTTP 204 No Content ou 404 Not Found).
+- **FR-17**: Atribuição de Role a Usuário (`POST /users/{userId}/roles` vinculando papel ao usuário via Keycloak Role Mapping API, retornando HTTP 200/201 ou 404 Not Found).
+- **FR-18**: Revogação de Role de Usuário (`DELETE /users/{userId}/roles/{roleId}` removendo mapeamento de papel via Keycloak Role Mapping API, retornando HTTP 204 No Content ou 404 Not Found).
 
 ### NonFunctional Requirements
 
@@ -39,7 +47,7 @@ This document provides the complete epic and story breakdown for oauth, decompos
 - **NFR-3**: Provisionamento automatizado do Keycloak através de `--import-realm` carregando `realm-export.json` na inicialização do container (zero setup manual).
 - **NFR-4**: Autenticação administrativa com Keycloak via Service Account (`client_credentials` do client `oauth` com role `manage-users`).
 - **NFR-5**: Respostas de erro padronizadas em envelope JSON (`code`, `message`, `details`) via listener global.
-- **NFR-6**: Preservação histórica: exclusão de usuários estritamente lógica (`enabled: false`), proibindo hard delete.
+- **NFR-6**: Preservação histórica: exclusão de usuários e roles estritamente lógica, proibindo hard delete.
 
 ### Additional Requirements
 
@@ -64,6 +72,14 @@ This document provides the complete epic and story breakdown for oauth, decompos
 - **FR-8**: Epic 3 - Atualização de Senha do Usuário via `PATCH /users/{id}`
 - **FR-9**: Epic 3 - Exclusão Lógica de Usuário via `DELETE /users/{id}`
 - **FR-10**: Epic 4 - Validação de Acesso a Recursos via `POST /authorize`
+- **FR-11**: Epic 6 (Story 6.1) - Criação de Role via `POST /roles`
+- **FR-12**: Epic 6 (Story 6.1) - Listagem de Roles Ativas via `GET /roles`
+- **FR-13**: Epic 6 (Story 6.1) - Consulta de Role por ID via `GET /roles/{id}`
+- **FR-14**: Epic 6 (Story 6.2) - Atualização Completa de Role via `PUT /roles/{id}`
+- **FR-15**: Epic 6 (Story 6.2) - Atualização Parcial de Role via `PATCH /roles/{id}`
+- **FR-16**: Epic 6 (Story 6.2) - Exclusão Lógica de Role via `DELETE /roles/{id}`
+- **FR-17**: Epic 6 (Story 6.3) - Atribuição de Role a Usuário via `POST /users/{userId}/roles`
+- **FR-18**: Epic 6 (Story 6.3) - Revogação de Role de Usuário via `DELETE /users/{userId}/roles/{roleId}`
 - **NFR-1 a NFR-6 / AR-1 a AR-4**: Epic 1 - Fundação, Ambiente Docker e Contratos Hexagonais
 
 ## Epic List
@@ -92,6 +108,11 @@ Permitir que outros microserviços do ecossistema acadêmico validem tokens de a
 Provisionar o serviço Grafana no ambiente de desenvolvimento/demonstração (compose raiz da malha), com datasource Prometheus pré-configurado, permitindo dashboards de métricas operacionais assim que a coleta (Prometheus) estiver disponível.
 - **Atribuição:** Você (Branch base `grupo01`)
 - **Requisitos Cobertos:** NFR-7.
+
+### Epic 6: Gestão do Ciclo de Vida de Roles e Atribuição de Papéis a Usuários
+Permitir a administração centralizada de papéis (criação, listagem, busca por ID, atualização integral/parcial e exclusão lógica) e a gestão dinâmica das atribuições de roles a usuários no Keycloak.
+- **Atribuição:** Desenvolvedor Backend (Branch `grupo01/feat/roles-management`)
+- **FRs cobertos:** FR-11, FR-12, FR-13, FR-14, FR-15, FR-16, FR-17, FR-18.
 
 ---
 
@@ -341,4 +362,89 @@ Para que o serviço coletor Prometheus possa raspar os dados operacionais e alim
 **And** requisições HTTP anteriores são contabilizadas em `http_requests_total` com labels `method`, `route` e `status`
 **And** a duração das requisições é registrada em `http_request_duration_seconds`
 **And** requisições ao próprio `/metrics` não inflam as métricas de tráfego de negócio.
+
+---
+
+## Epic 6: Gestão do Ciclo de Vida de Roles e Atribuição de Papéis a Usuários
+
+**Objetivo do Épico:** Implementar a gestão completa de papéis (roles) e suas associações a usuários no Keycloak através de endpoints REST padronizados, seguindo estritamente a Arquitetura Hexagonal, dividida em 3 frentes/histórias autônomas e testáveis.
+
+### Story 6.1: Criação e Consulta de Roles (Parte 1)
+
+Como administrador da plataforma,
+Eu quero cadastrar novos papéis no Keycloak e consultar roles cadastradas por ID ou em listagem geral,
+Para que o sistema possua os papéis necessários para parametrização de permissões e controle de acesso.
+
+**Acceptance Criteria:**
+
+**Given** um administrador autenticado com Bearer Token válido
+**When** envia uma requisição `POST /roles` com JSON válido contendo `name` e opcionalmente `description`
+**Then** a API cadastra o role no Keycloak e responde HTTP 201 (Created) com os dados do role incluindo o `id` gerado
+**And** se já existir um role com o mesmo nome, a API responde HTTP 409 (Conflict) com erro padronizado.
+
+**Given** um administrador autenticado
+**When** envia uma requisição `GET /roles`
+**Then** a API responde HTTP 200 (OK) com um array JSON contendo todas as roles ativas cadastradas no realm
+**And** roles que foram inativadas/excluídas logicamente não devem ser exibidas na listagem.
+
+**Given** um administrador autenticado
+**When** envia uma requisição `GET /roles/{id}` com um ID existente
+**Then** a API responde HTTP 200 (OK) com a representação detalhada do role correspondente
+**And** se o ID informado não existir no Keycloak, a API responde HTTP 404 (Not Found).
+
+**Given** uma requisição para qualquer um dos endpoints acima
+**When** o token for omitido ou inválido
+**Then** a API responde HTTP 401 (Unauthorized).
+
+---
+
+### Story 6.2: Atualização e Exclusão Lógica de Roles (Parte 2)
+
+Como administrador da plataforma,
+Eu quero atualizar atributos de um papel (de forma integral ou parcial) e realizar sua exclusão lógica,
+Para manter o catálogo de papéis atualizado sem perder histórico ou integridade relacional.
+
+**Acceptance Criteria:**
+
+**Given** um administrador autenticado
+**When** envia uma requisição `PUT /roles/{id}` com payload JSON válido contendo `name` e `description`
+**Then** a API atualiza integralmente o role na Admin API do Keycloak e responde HTTP 200 (OK) com os dados atualizados
+**And** se o ID do role não existir, a API responde HTTP 404 (Not Found).
+
+**Given** um administrador autenticado
+**When** envia uma requisição `PATCH /roles/{id}` com payload parcial (ex: apenas `description` ou apenas `name`)
+**Then** a API atualiza somente os campos informados mantendo os demais inalterados e responde HTTP 200 (OK)
+**And** se o ID do role não existir, a API responde HTTP 404 (Not Found).
+
+**Given** um administrador autenticado
+**When** envia uma requisição `DELETE /roles/{id}` para um role existente
+**Then** a API realiza a inativação lógica do role no Keycloak (sem hard-delete) e responde HTTP 204 (No Content) com corpo vazio
+**And** requisições posteriores a `GET /roles` deixam de listar o role inativado
+**And** se o ID do role não existir, a API responde HTTP 404 (Not Found).
+
+---
+
+### Story 6.3: Atribuição e Desassociação de Roles a Usuários (Parte 3)
+
+Como administrador da plataforma,
+Eu quero atribuir papéis a usuários e revogar atribuições existentes,
+Para que as políticas de autorização reflitam dinamicamente as funções desempenhadas por cada usuário.
+
+**Acceptance Criteria:**
+
+**Given** um administrador autenticado
+**When** envia uma requisição `POST /users/{userId}/roles` com payload JSON contendo o identificador do papel (`roleId` ou `name`)
+**Then** a API associa o papel ao usuário através da Role Mapping API do Keycloak e responde HTTP 200 (OK) ou HTTP 201 (Created)
+**And** se o `userId` não existir no Keycloak, a API responde HTTP 404 (Not Found)
+**And** se o role informado não existir no Keycloak, a API responde HTTP 404 (Not Found).
+
+**Given** um administrador autenticado
+**When** envia uma requisição `DELETE /users/{userId}/roles/{roleId}`
+**Then** a API revoga a atribuição do papel do usuário no Keycloak e responde HTTP 204 (No Content) com corpo vazio
+**And** se o usuário ou o role não forem localizados, a API responde HTTP 404 (Not Found).
+
+**Given** uma requisição para os endpoints de mapeamento role-user
+**When** o header `Authorization` for ausente ou portar token inválido/expirado
+**Then** a API responde HTTP 401 (Unauthorized).
+
 

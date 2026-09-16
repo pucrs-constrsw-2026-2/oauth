@@ -2,7 +2,7 @@
 title: OAuth Microservice PRD
 status: final
 created: 2026-09-02
-updated: 2026-09-13
+updated: 2026-09-16
 ---
 
 # PRD: Microserviço de Autenticação e Autorização (OAuth/OIDC)
@@ -20,6 +20,7 @@ A solução evita que outros serviços da aplicação precisem se comunicar dire
 - **Como serviço consumidor (cliente):** Desejo autenticar usuários através de credenciais para obter Access Tokens e Refresh Tokens no padrão OIDC.
 - **Como serviço consumidor (cliente):** Desejo validar se uma requisição portando um Access Token possui permissão para acessar determinado recurso do sistema acadêmico, sem precisar interagir com a complexidade interna do Keycloak.
 - **Como administrador do sistema:** Desejo cadastrar, listar, consultar, atualizar atributos, alterar senhas e desativar contas de usuários através de endpoints REST padronizados.
+- **Como administrador do sistema:** Desejo criar, listar, consultar, atualizar, desativar roles e atribuir/remover papéis de contas de usuários através de endpoints REST padronizados.
 - **Como integrante da equipe de desenvolvimento:** Desejo dispor de uma base Dockerizada pronta com a Arquitetura Hexagonal estruturada e contratos de interface (*Ports*) bem definidos, permitindo desenvolver meu módulo em uma branch isolada sem dependências bloqueantes ou conflitos de integração.
 
 ### 2.2 Non-Users (v1)
@@ -58,6 +59,22 @@ A solução evita que outros serviços da aplicação precisem se comunicar dire
   - **Climax:** Se o usuário pertencer a um role com permissão associada (ex: `administrator` para `rooms`), a API responde HTTP 200 (OK).
   - **Resolution:** O microserviço consumidor autoriza a execução da operação solicitada.
   - **Edge case:** Se o usuário não possuir papel associado ao recurso (ex: `student` tentando acessar `rooms` ou `lessons`), a API responde HTTP 403 (Forbidden).
+
+- **UJ-5: Administração do Ciclo de Vida de Roles**
+  - **Persona + contexto:** Administrador do sistema gerencia papéis institucionais no Keycloak.
+  - **Entry state:** Administrador autenticado com Bearer Token.
+  - **Path:** Cria novo role via `POST /roles`, consulta a lista completa em `GET /roles` ou busca por ID em `GET /roles/{id}`. Pode atualizar atributos via `PUT /roles/{id}` ou `PATCH /roles/{id}`, e executar a exclusão lógica via `DELETE /roles/{id}`.
+  - **Climax:** O role é provisionado e mantido no realm do Keycloak com integridade de dados e histórico preservado.
+  - **Resolution:** Outros serviços e administradores passam a dispor do role atualizado no ecossistema.
+  - **Edge case:** Criação de role com nome duplicado retorna HTTP 409 (Conflict). Consulta, alteração ou exclusão de role com ID inexistente retorna HTTP 404 (Not Found).
+
+- **UJ-6: Atribuição e Revogação de Papéis a Usuários**
+  - **Persona + contexto:** Administrador associa ou remove permissões/roles de alunos, professores ou coordenadores.
+  - **Entry state:** Administrador autenticado com Bearer Token.
+  - **Path:** Invoca `POST /users/{userId}/roles` informando o role a ser atribuído. Posteriormente, caso o usuário mude de função, aciona `DELETE /users/{userId}/roles/{roleId}` para revogar o papel.
+  - **Climax:** Mapeamento de role no Keycloak é atualizado na hora (`role-mappings/realm`), passando a refletir nos próximos tokens gerados para o usuário.
+  - **Resolution:** O usuário passa a ter (ou perde) os privilégios nos microserviços protegidos.
+  - **Edge case:** Tentativa de mapear role para usuário inexistente ou vincular role inexistente retorna HTTP 404 (Not Found).
 
 ## 3. Glossary
 - **Identity Provider (IdP):** Sistema centralizado responsável pela emissão de tokens, autenticação e gerenciamento de identidades (neste projeto: Keycloak).
@@ -175,11 +192,68 @@ O ambiente de desenvolvimento/demonstração deve disponibilizar um serviço Gra
 
 ---
 
+### 4.5 Gerenciamento e Atribuição de Roles (Role Management)
+**Description:** Fornece endpoints REST para administração de roles e atribuição de papéis a usuários via Keycloak Admin REST API. Todas as rotas exigem header `Authorization: Bearer <token>`. Realiza UJ-5 e UJ-6.
+
+#### FR-11: Criação de Role (`POST /roles`)
+Permite cadastrar um novo papel (role) no Keycloak. Realiza UJ-5.
+- **Consequences (testable):**
+  - Requisição com payload JSON válido contendo `name` (e opcionalmente `description`) cria a role e retorna HTTP 201 (Created) com representação JSON incluindo `id`, `name` e `description`.
+  - Tentativa de cadastro com nome de role já existente retorna HTTP 409 (Conflict).
+  - Dados obrigatórios ausentes retornam HTTP 400 (Bad Request).
+
+#### FR-12: Listagem de Roles (`GET /roles`)
+Permite recuperar todos os papéis cadastrados que estejam ativos no Keycloak. Realiza UJ-5.
+- **Consequences (testable):**
+  - Retorna HTTP 200 (OK) com lista JSON de roles ativas. Roles marcadas como inativas/excluídas logicamente são filtradas.
+  - Token ausente ou inválido retorna HTTP 401 (Unauthorized).
+
+#### FR-13: Consulta de Role por ID (`GET /roles/{id}`)
+Permite obter os detalhes cadastrais de um role específico pelo seu identificador. Realiza UJ-5.
+- **Consequences (testable):**
+  - ID localizado retorna HTTP 200 (OK) com a representação JSON do role.
+  - ID inexistente retorna HTTP 404 (Not Found).
+
+#### FR-14: Atualização Completa de Role (`PUT /roles/{id}`)
+Permite atualizar integralmente os atributos de um role existente (nome e descrição). Realiza UJ-5.
+- **Consequences (testable):**
+  - Atualização bem-sucedida consome a Admin API do Keycloak e retorna HTTP 200 (OK) com corpo atualizado ou confirmação de sucesso.
+  - ID inexistente retorna HTTP 404 (Not Found).
+  - Payload inválido retorna HTTP 400 (Bad Request).
+
+#### FR-15: Atualização Parcial de Role (`PATCH /roles/{id}`)
+Permite atualizar campos parciais de um role (ex: alteração de descrição mantendo nome). Realiza UJ-5.
+- **Consequences (testable):**
+  - Requisição com campos parciais atualiza somente os atributos informados e retorna HTTP 200 (OK).
+  - ID inexistente retorna HTTP 404 (Not Found).
+
+#### FR-16: Exclusão Lógica de Role (`DELETE /roles/{id}`)
+Realiza a exclusão lógica de um role (marcando atributo de inativação/soft-delete no Keycloak), preservando integridade institucional. Realiza UJ-5.
+- **Consequences (testable):**
+  - ID localizado tem seu status inativado e retorna HTTP 204 (No Content) com corpo vazio.
+  - ID inexistente retorna HTTP 404 (Not Found).
+
+#### FR-17: Atribuição de Role a Usuário (`POST /users/{userId}/roles`)
+Permite atribuir/vincular um role a um usuário no Keycloak. Realiza UJ-6.
+- **Consequences (testable):**
+  - Requisição com payload JSON informando o identificador do role (`roleId` ou `name`) associa o role ao usuário no Keycloak via Role Mapping API e retorna HTTP 200 (OK) ou HTTP 201 (Created).
+  - Usuário ou Role inexistente retorna HTTP 404 (Not Found).
+  - Token ausente/inválido retorna HTTP 401 (Unauthorized).
+
+#### FR-18: Revogação da Atribuição de Role de Usuário (`DELETE /users/{userId}/roles/{roleId}`)
+Permite remover/desvincular a atribuição de um role de um usuário. Realiza UJ-6.
+- **Consequences (testable):**
+  - Desassociação bem-sucedida remove o mapeamento na Role Mapping API do Keycloak e retorna HTTP 204 (No Content) com corpo vazio.
+  - Usuário ou Role inexistente retorna HTTP 404 (Not Found).
+
+---
+
 ## 5. Non-Goals (Explicit)
 - Não implementação de telas ou interfaces com o usuário (UI) neste repositório.
 - Não acoplamento da camada de domínio a SDKs específicos do Keycloak (as portas devem ser agnósticas).
 - Não persistência direta de dados de usuários em bancos relacionais locais; a persistência canônica reside exclusivamente no Keycloak.
 - Não execução de exclusão física (*hard delete*) de usuários (restringe-se a soft delete via `enabled = false`).
+- Não execução de exclusão física (*hard delete*) de roles (restringe-se a soft delete / inativação lógica).
 
 ---
 
@@ -214,7 +288,7 @@ Para viabilizar a colaboração paralela entre os 4 integrantes do grupo sem con
 ---
 
 ## 7. Success Metrics & Critérios de Aceitação
-- **SM-1:** 100% dos 10 requisitos funcionais (FR-1 a FR-10) operacionais e validados com os códigos HTTP definidos.
+- **SM-1:** 100% dos 18 requisitos funcionais (FR-1 a FR-18) operacionais e validados com os códigos HTTP definidos.
 - **SM-2:** O ambiente completo deve subir e ficar pronto para uso através do comando `docker compose up -d`, sem necessidade de passos manuais de configuração inicial no Keycloak.
 - **SM-3 (Arquitetura):** A camada de Domínio deve ser 100% isolada; nenhuma dependência ou import de bibliotecas específicas do Keycloak deve estar presente fora de `src/Infrastructure`.
 - **SM-C1 (Contra-métrica):** A branch principal de fundação não deve implementar controladores de negócio dos outros integrantes, assegurando contribuições equilibradas e commits independentes para os 4 integrantes.
@@ -231,3 +305,4 @@ Para viabilizar a colaboração paralela entre os 4 integrantes do grupo sem con
 - `[ASSUMPTION-1]`: O endpoint de login suportará tanto `application/json` quanto `application/x-www-form-urlencoded` / `multipart/form-data`.
 - `[ASSUMPTION-2]`: O endpoint de autorização receberá o recurso solicitado no corpo JSON `{"resource": "<resource_name>"}` e o token de acesso via header `Authorization: Bearer <token>`.
 - `[ASSUMPTION-3]`: A exclusão de usuário é estritamente lógica (`enabled = false`), preservando a integridade das identidades no Identity Provider.
+- `[ASSUMPTION-4]`: A exclusão de roles é estritamente lógica (via flag ou atributo no Keycloak, ou filtragem de ativas), não realizando deleção irreversível para preservar integridade de auditoria.

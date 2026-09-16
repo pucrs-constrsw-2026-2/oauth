@@ -7,8 +7,8 @@ paradigm: 'Hexagonal Architecture (Ports and Adapters)'
 scope: 'OAuth/OIDC Authentication & Authorization Microservice'
 status: final
 created: '2026-09-02'
-updated: '2026-09-13'
-binds: ['FR-1', 'FR-2', 'FR-3', 'FR-4', 'FR-5', 'FR-6', 'FR-7', 'FR-8', 'FR-9', 'FR-10', 'NFR-7', 'SM-1', 'SM-2', 'SM-3', 'SM-C1']
+updated: '2026-09-16'
+binds: ['FR-1', 'FR-2', 'FR-3', 'FR-4', 'FR-5', 'FR-6', 'FR-7', 'FR-8', 'FR-9', 'FR-10', 'FR-11', 'FR-12', 'FR-13', 'FR-14', 'FR-15', 'FR-16', 'FR-17', 'FR-18', 'NFR-7', 'SM-1', 'SM-2', 'SM-3', 'SM-C1']
 sources: ['_bmad-output/planning-artifacts/prd.md', 'docs/professor-specification.md']
 companions: ['team-integration-guide.md']
 ---
@@ -112,6 +112,16 @@ graph TD
 - **Prevents:** Configuração manual de datasource no Grafana a cada `docker compose up`.
 - **Rule:** O serviço `grafana` roda no `docker-compose.yml` raiz da malha (fora do repositório do oauth), provisionado via arquivos de datasource/dashboard versionados. O datasource Prometheus é pré-configurado apontando para o serviço `prometheus` (nome de host convencionado), ainda que esse serviço seja entregue por outra frente de trabalho — o Grafana deve subir corretamente mesmo antes do Prometheus existir (datasource fica "unreachable" até lá).
 
+### AD-8 — Gestão e Atribuição de Roles via Keycloak Admin REST API [ADOPTED]
+- **Binds:** FR-11 a FR-18 (gestão de papéis e mapeamento de roles a usuários).
+- **Prevents:** Acoplamento a rotas nativas do Keycloak na camada de domínio, perda de histórico de papéis por hard delete e inconsistências de mapeamento role-user.
+- **Rule:**
+  * O gerenciamento de roles opera sobre as Realm Roles do Keycloak (`/admin/realms/{realm}/roles`).
+  * Consultas, atualizações e exclusões pontuais utilizam o identificador ou endpoint de busca por ID do Keycloak (`/admin/realms/{realm}/roles-by-id/{id}`).
+  * A **exclusão lógica** de roles (FR-16) preserva o registro no Keycloak, inativando o papel via atributo de controle (`attributes.enabled = false` ou tag correlata) e filtrando-o das listagens padrão (`GET /roles`).
+  * A **atribuição e revogação de papéis em usuários** (FR-17 e FR-18) consome a API de Role Mappings do Keycloak (`/admin/realms/{realm}/users/{userId}/role-mappings/realm`), associando ou removendo os papéis mapeados ao usuário informado.
+  * Toda a interação externa é encapsulada pela porta outbound `KeycloakRolePortInterface` e implementada pelo adaptador `KeycloakRoleAdapter`, mantendo a camada de domínio desacoplada.
+
 ---
 
 ## Consistency Conventions
@@ -123,6 +133,7 @@ graph TD
 | **Datas & Prazos** | ISO-8601 em strings (`Y-m-d\TH:i:sP`) ou inteiros em segundos para `expires_in`. |
 | **Códigos HTTP** | Criação: `201 Created`. Exclusão Lógica: `204 No Content`. Busca/Listagem: `200 OK`. Não encontrado: `404 Not Found`. Credenciais/Token inválido: `401 Unauthorized`. Sem permissão: `403 Forbidden`. Conflito: `409 Conflict`. Validação: `400 Bad Request`. |
 | **Exclusão de Usuário** | Exclusão estritamente lógica via Keycloak Admin API (`"enabled": false`). |
+| **Exclusão de Role** | Exclusão estritamente lógica via atributo de inativação/soft-delete na Keycloak Admin API. |
 
 ---
 
@@ -176,26 +187,39 @@ oauth/
     │   │   │   ├── UpdateUserUseCaseInterface.php
     │   │   │   ├── UpdatePasswordUseCaseInterface.php
     │   │   │   ├── DisableUserUseCaseInterface.php
-    │   │   │   └── AuthorizeResourceUseCaseInterface.php
+    │   │   │   ├── AuthorizeResourceUseCaseInterface.php
+    │   │   │   ├── CreateRoleUseCaseInterface.php
+    │   │   │   ├── ListRolesUseCaseInterface.php
+    │   │   │   ├── GetRoleByIdUseCaseInterface.php
+    │   │   │   ├── UpdateRoleUseCaseInterface.php
+    │   │   │   ├── PatchRoleUseCaseInterface.php
+    │   │   │   ├── DisableRoleUseCaseInterface.php
+    │   │   │   ├── AssignUserRoleUseCaseInterface.php
+    │   │   │   └── UnassignUserRoleUseCaseInterface.php
     │   │   └── Outbound/              # Interfaces de Infraestrutura (implementadas pelos Adapters)
     │   │       ├── KeycloakAuthPortInterface.php
     │   │       ├── KeycloakUserPortInterface.php
+    │   │       ├── KeycloakRolePortInterface.php
     │   │       └── KeycloakAuthorizationPortInterface.php
     │   └── Exception/
     │       ├── InvalidCredentialsException.php
     │       ├── UserNotFoundException.php
     │       ├── UserAlreadyExistsException.php
     │       ├── AccessDeniedException.php
-    │       └── InvalidTokenException.php
+    │       ├── InvalidTokenException.php
+    │       ├── RoleNotFoundException.php
+    │       └── RoleAlreadyExistsException.php
     ├── Application/                   # CASOS DE USO E DTOs
     │   ├── DTO/
     │   │   ├── Auth/                  # LoginRequestDTO, TokenResponseDTO, RefreshTokenDTO
     │   │   ├── User/                  # CreateUserDTO, UserResponseDTO, UpdateUserDTO
-    │   │   └── Authorization/         # AuthorizeRequestDTO, AuthorizeResponseDTO
+    │   │   ├── Authorization/         # AuthorizeRequestDTO, AuthorizeResponseDTO
+    │   │   └── Role/                  # CreateRoleDTO, RoleDTO, UpdateRoleDTO, PatchRoleDTO, AssignRoleDTO
     │   └── UseCase/
     │       ├── Auth/                  # [Frente 2] Login, Refresh, UserInfo
     │       ├── User/                  # [Frente 3] Create, List, Get, Update, Disable
-    │       └── Authorization/         # [Frente 4] AuthorizeResource
+    │       ├── Authorization/         # [Frente 4] AuthorizeResource
+    │       └── Role/                  # [Epic 6] Criação, Consulta, Atualização, Exclusão Lógica e Atribuição
     └── Infrastructure/                # ADAPTADORES CONCRETOS
         ├── Keycloak/
         │   ├── Client/
@@ -203,12 +227,14 @@ oauth/
         │   └── Adapter/
         │       ├── KeycloakAuthAdapter.php          # [Frente 2]
         │       ├── KeycloakUserAdapter.php          # [Frente 3]
-        │       └── KeycloakAuthorizationAdapter.php # [Frente 4]
+        │       ├── KeycloakAuthorizationAdapter.php # [Frente 4]
+        │       └── KeycloakRoleAdapter.php          # [Epic 6]
         └── Http/
             ├── Controller/
             │   ├── AuthController.php               # [Frente 2]
             │   ├── UserController.php               # [Frente 3]
-            │   └── AuthorizationController.php      # [Frente 4]
+            │   ├── AuthorizationController.php      # [Frente 4]
+            │   └── RoleController.php               # [Epic 6]
             └── Listener/
                 └── JsonExceptionListener.php        # Tratamento global de erros
 ```
@@ -229,6 +255,14 @@ oauth/
 | **FR-8: PATCH /users/{id}** | `UserController::password`| `UpdatePasswordUseCase` | `KeycloakUserAdapter` | Frente 3 (`grupo01/feat/user-management`) |
 | **FR-9: DELETE /users/{id}** | `UserController::delete` | `DisableUserUseCase` | `KeycloakUserAdapter` | Frente 3 (`grupo01/feat/user-management`) |
 | **FR-10: POST /authorize** | `AuthorizationController::authorize` | `AuthorizeResourceUseCase` | `KeycloakAuthorizationAdapter` | Frente 4 (`grupo01/feat/authorization-policies`) |
+| **FR-11: POST /roles** | `RoleController::create` | `CreateRoleUseCase` | `KeycloakRoleAdapter` | Epic 6 - Parte 1 (`grupo01/feat/roles-management`) |
+| **FR-12: GET /roles** | `RoleController::list` | `ListRolesUseCase` | `KeycloakRoleAdapter` | Epic 6 - Parte 1 (`grupo01/feat/roles-management`) |
+| **FR-13: GET /roles/{id}** | `RoleController::get` | `GetRoleByIdUseCase` | `KeycloakRoleAdapter` | Epic 6 - Parte 1 (`grupo01/feat/roles-management`) |
+| **FR-14: PUT /roles/{id}** | `RoleController::update` | `UpdateRoleUseCase` | `KeycloakRoleAdapter` | Epic 6 - Parte 2 (`grupo01/feat/roles-management`) |
+| **FR-15: PATCH /roles/{id}** | `RoleController::patch` | `PatchRoleUseCase` | `KeycloakRoleAdapter` | Epic 6 - Parte 2 (`grupo01/feat/roles-management`) |
+| **FR-16: DELETE /roles/{id}** | `RoleController::delete` | `DisableRoleUseCase` | `KeycloakRoleAdapter` | Epic 6 - Parte 2 (`grupo01/feat/roles-management`) |
+| **FR-17: POST /users/{userId}/roles** | `RoleController::assignRole` | `AssignUserRoleUseCase` | `KeycloakRoleAdapter` | Epic 6 - Parte 3 (`grupo01/feat/roles-management`) |
+| **FR-18: DELETE /users/{userId}/roles/{roleId}** | `RoleController::unassignRole` | `UnassignUserRoleUseCase` | `KeycloakRoleAdapter` | Epic 6 - Parte 3 (`grupo01/feat/roles-management`) |
 | **Base / Setup / Docker** | Infraestrutura | Inbound & Outbound Ports | `KeycloakHttpClient` | **Frente 1 (Você na branch base grupo01)** |
 
 ---
