@@ -7,6 +7,8 @@ const validEnvironment = {
   KEYCLOAK_REALM: "constrsw",
   KEYCLOAK_CLIENT_ID: "oauth",
   KEYCLOAK_CLIENT_SECRET: "secret",
+  KEYCLOAK_ADMIN_CLIENT_ID: "oauth-admin",
+  KEYCLOAK_ADMIN_CLIENT_SECRET: "admin-secret",
   KEYCLOAK_TIMEOUT_MS: "5000",
   SESSION_COOKIE_NAME: "session",
   COOKIE_SECURE: "false",
