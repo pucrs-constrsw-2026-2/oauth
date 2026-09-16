@@ -1084,6 +1084,26 @@ final class OpenApiSpecificationBuilder
                     ],
                 ],
             ],
+            '/metrics' => [
+                'get' => [
+                    'tags' => ['Sistema'],
+                    'summary' => 'Expor telemetria e métricas operacionais para Prometheus',
+                    'description' => 'Exporta métricas de runtime PHP, tráfego HTTP, contadores e latência no formato OpenMetrics / Prometheus.',
+                    'responses' => [
+                        '200' => [
+                            'description' => 'Métricas exportadas com sucesso no formato texto do Prometheus.',
+                            'content' => [
+                                'text/plain' => [
+                                    'schema' => [
+                                        'type' => 'string',
+                                        'example' => "# HELP php_memory_bytes Uso atual de memória\n# TYPE php_memory_bytes gauge\nphp_memory_bytes 1234567\n",
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
         ];
     }
 }

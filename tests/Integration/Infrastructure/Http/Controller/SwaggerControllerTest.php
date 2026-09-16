@@ -37,6 +37,7 @@ final class SwaggerControllerTest extends WebTestCase
         $this->assertArrayHasKey('/users/{id}', $data['paths']);
         $this->assertArrayHasKey('/authorize', $data['paths']);
         $this->assertArrayHasKey('/health', $data['paths']);
+        $this->assertArrayHasKey('/metrics', $data['paths']);
 
         // Valida schemas
         $this->assertArrayHasKey('AuthorizeResponse', $data['components']['schemas']);

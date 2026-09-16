@@ -322,3 +322,23 @@ Para que dashboards de métricas fiquem disponíveis assim que a coleta de métr
 **Then** o serviço `grafana` inicializa em estado saudável, acessível na porta dedicada
 **And** o datasource Prometheus já está provisionado (apontando para o host `prometheus`), mesmo que o serviço `prometheus` ainda não exista
 **And** nenhuma configuração manual é necessária na primeira execução (usuário/senha via variáveis de ambiente).
+
+---
+
+### Story 5.2: Instrumentação de Métricas do OAuth e Exposição no Padrão Prometheus
+
+Como desenvolvedor ou operador da plataforma,
+Eu quero que o microserviço `oauth` exponha métricas de runtime PHP, tráfego HTTP e operações do serviço no endpoint `GET /metrics`,
+Para que o serviço coletor Prometheus possa raspar os dados operacionais e alimentar dashboards no Grafana.
+
+**Acceptance Criteria:**
+
+**Given** o microserviço `oauth` em execução
+**When** uma requisição `GET /metrics` for enviada
+**Then** a API responde HTTP 200 (OK) com header `Content-Type: text/plain; version=0.0.4; charset=utf-8`
+**And** o corpo da resposta contém as famílias de métricas do runtime PHP (`php_info`, `php_memory_bytes`, `php_memory_peak_bytes`)
+**And** o corpo contém os metadados do serviço (`oauth_service_info`) com labels de serviço, framework e realm
+**And** requisições HTTP anteriores são contabilizadas em `http_requests_total` com labels `method`, `route` e `status`
+**And** a duração das requisições é registrada em `http_request_duration_seconds`
+**And** requisições ao próprio `/metrics` não inflam as métricas de tráfego de negócio.
+
