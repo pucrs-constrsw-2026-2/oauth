@@ -5,6 +5,11 @@ import br.pucrs.constrsw.oauth.dto.LoginRequest;
 import br.pucrs.constrsw.oauth.dto.LoginResponse;
 import br.pucrs.constrsw.oauth.dto.UpdatePasswordRequest;
 import br.pucrs.constrsw.oauth.dto.UserResponse;
+import br.pucrs.constrsw.oauth.dto.CreateRoleRequest;
+import br.pucrs.constrsw.oauth.dto.UpdateRoleRequest;
+import br.pucrs.constrsw.oauth.dto.PatchRoleRequest;
+import br.pucrs.constrsw.oauth.dto.RoleResponse;
+
 import br.pucrs.constrsw.oauth.exception.KeycloakException;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.exceptions.JWTDecodeException;
@@ -435,6 +440,283 @@ public class KeycloakService {
             throw new KeycloakException("KEYCLOAK_GET_ROLE_ERROR", "Erro ao consultar cargo no Keycloak", (HttpStatus) e.getStatusCode(), e);
         }
     }
+
+    /**
+     * POST /roles: Criar cargo no Keycloak.
+     */
+    public RoleResponse createRole(CreateRoleRequest request) {
+        String adminToken = getAdminToken();
+        String rolesUrl = String.format("%s/admin/realms/%s/roles", keycloakUrl, realm);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", request.name());
+        if (request.description() != null) {
+            payload.put("description", request.description());
+        }
+
+        boolean enabled = request.enabled() == null || request.enabled();
+        Map<String, List<String>> attributes = new HashMap<>();
+        attributes.put("enabled", List.of(String.valueOf(enabled)));
+        payload.put("attributes", attributes);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+        try {
+            restTemplate.postForEntity(rolesUrl, entity, Void.class);
+            log.info("Cargo '{}' criado com sucesso no Keycloak", request.name());
+
+            // Keycloak não retorna o ID no POST de role, busca pelo nome
+            return getRoleByName(request.name());
+        } catch (HttpClientErrorException.Conflict e) {
+            log.warn("Cargo com nome '{}' já existe", request.name());
+            throw new KeycloakException("ROLE_ALREADY_EXISTS", "Cargo com nome '" + request.name() + "' já cadastrado", HttpStatus.CONFLICT, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                throw new KeycloakException("ROLE_ALREADY_EXISTS", "Cargo com nome '" + request.name() + "' já cadastrado", HttpStatus.CONFLICT, e);
+            }
+            log.error("Erro ao criar cargo no Keycloak: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_CREATE_ROLE_ERROR", "Erro ao criar cargo no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (Exception e) {
+            log.error("Erro inesperado ao criar cargo '{}': {}", request.name(), e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_CREATE_ROLE_FAILED", "Falha na criação de cargo: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * GET /roles: Listar cargos do realm.
+     */
+    public List<RoleResponse> getRoles() {
+        String adminToken = getAdminToken();
+        String rolesUrl = String.format("%s/admin/realms/%s/roles", keycloakUrl, realm);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                    rolesUrl,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+            );
+
+            List<Map<String, Object>> body = response.getBody();
+            if (body == null) {
+                return Collections.emptyList();
+            }
+
+            return body.stream().map(this::mapToRoleResponse).collect(Collectors.toList());
+        } catch (HttpClientErrorException e) {
+            log.error("Erro ao listar cargos no Keycloak: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_GET_ROLES_ERROR", "Erro ao listar cargos no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (Exception e) {
+            log.error("Erro inesperado ao listar cargos: {}", e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_GET_ROLES_FAILED", "Falha ao listar cargos: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * GET /roles/{id}: Buscar cargo específico por ID.
+     */
+    public RoleResponse getRole(String roleId) {
+        String adminToken = getAdminToken();
+        Map<String, Object> roleMap = getRoleById(adminToken, roleId);
+        return mapToRoleResponse(roleMap);
+    }
+
+    /**
+     * PUT /roles/{id}: Atualizar cargo completo.
+     */
+    public RoleResponse updateRole(String roleId, UpdateRoleRequest request) {
+        String adminToken = getAdminToken();
+        Map<String, Object> existing = getRoleById(adminToken, roleId);
+
+        String roleUrl = String.format("%s/admin/realms/%s/roles-by-id/%s", keycloakUrl, realm, roleId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        existing.put("name", request.name());
+        existing.put("description", request.description());
+
+        Map<String, Object> attributes = (Map<String, Object>) existing.getOrDefault("attributes", new HashMap<>());
+        if (request.enabled() != null) {
+            attributes.put("enabled", List.of(String.valueOf(request.enabled())));
+        }
+        existing.put("attributes", attributes);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(existing, headers);
+
+        try {
+            restTemplate.put(roleUrl, entity);
+            log.info("Cargo id='{}' atualizado com sucesso", roleId);
+            return mapToRoleResponse(getRoleById(adminToken, roleId));
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            log.error("Erro ao atualizar cargo id='{}': status={}, body={}", roleId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_UPDATE_ROLE_ERROR", "Erro ao atualizar cargo no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro inesperado ao atualizar cargo id='{}': {}", roleId, e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_UPDATE_ROLE_FAILED", "Falha ao atualizar cargo: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * PATCH /roles/{id}: Atualizar cargo parcial.
+     */
+    public RoleResponse patchRole(String roleId, PatchRoleRequest request) {
+        String adminToken = getAdminToken();
+        Map<String, Object> existing = getRoleById(adminToken, roleId);
+
+        String roleUrl = String.format("%s/admin/realms/%s/roles-by-id/%s", keycloakUrl, realm, roleId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        if (request.name() != null && !request.name().isBlank()) {
+            existing.put("name", request.name());
+        }
+        if (request.description() != null) {
+            existing.put("description", request.description());
+        }
+        if (request.enabled() != null) {
+            Map<String, Object> attributes = (Map<String, Object>) existing.getOrDefault("attributes", new HashMap<>());
+            attributes.put("enabled", List.of(String.valueOf(request.enabled())));
+            existing.put("attributes", attributes);
+        }
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(existing, headers);
+
+        try {
+            restTemplate.put(roleUrl, entity);
+            log.info("Cargo id='{}' atualizado parcialmente com sucesso", roleId);
+            return mapToRoleResponse(getRoleById(adminToken, roleId));
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            log.error("Erro ao aplicar patch no cargo id='{}': status={}, body={}", roleId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_PATCH_ROLE_ERROR", "Erro ao atualizar cargo no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro inesperado no patch do cargo id='{}': {}", roleId, e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_PATCH_ROLE_FAILED", "Falha ao atualizar cargo: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * DELETE /roles/{id}: Deleção lógica de role (simula desativação com atributo customizado enabled=false).
+     */
+    public void logicalDeleteRole(String roleId) {
+        String adminToken = getAdminToken();
+        Map<String, Object> existing = getRoleById(adminToken, roleId);
+
+        String roleUrl = String.format("%s/admin/realms/%s/roles-by-id/%s", keycloakUrl, realm, roleId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        Map<String, Object> attributes = (Map<String, Object>) existing.getOrDefault("attributes", new HashMap<>());
+        attributes.put("enabled", List.of("false"));
+        existing.put("attributes", attributes);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(existing, headers);
+
+        try {
+            restTemplate.put(roleUrl, entity);
+            log.info("Deleção lógica do cargo id='{}' concluída com sucesso (enabled=false)", roleId);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("ROLE_NOT_FOUND", "Cargo com id '" + roleId + "' não foi encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            log.error("Erro na deleção lógica do cargo id='{}': status={}, body={}", roleId, e.getStatusCode(), e.getResponseBodyAsString());
+            throw new KeycloakException("KEYCLOAK_DELETE_ROLE_ERROR", "Erro ao desativar cargo no Keycloak", (HttpStatus) e.getStatusCode(), e);
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro inesperado na deleção lógica do cargo id='{}': {}", roleId, e.getMessage(), e);
+            throw new KeycloakException("KEYCLOAK_DELETE_ROLE_FAILED", "Falha ao desativar cargo: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    /**
+     * Busca uma role pelo seu nome (/roles/{roleName}).
+     */
+    private RoleResponse getRoleByName(String roleName) {
+        String adminToken = getAdminToken();
+        String roleUrl = String.format("%s/admin/realms/%s/roles/%s", keycloakUrl, realm, roleName);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    roleUrl,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            Map<String, Object> body = response.getBody();
+            if (body == null) {
+                throw new KeycloakException("ROLE_NOT_FOUND", "Cargo '" + roleName + "' não encontrado", HttpStatus.NOT_FOUND);
+            }
+            return mapToRoleResponse(body);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new KeycloakException("ROLE_NOT_FOUND", "Cargo '" + roleName + "' não encontrado", HttpStatus.NOT_FOUND, e);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new KeycloakException("ROLE_NOT_FOUND", "Cargo '" + roleName + "' não encontrado", HttpStatus.NOT_FOUND, e);
+            }
+            throw new KeycloakException("KEYCLOAK_GET_ROLE_ERROR", "Erro ao buscar cargo", (HttpStatus) e.getStatusCode(), e);
+        }
+    }
+
+    /**
+     * Converte um Map retornado do Keycloak para o DTO RoleResponse.
+     */
+    private RoleResponse mapToRoleResponse(Map<String, Object> r) {
+        boolean enabled = true;
+        Object attrsObj = r.get("attributes");
+        if (attrsObj instanceof Map<?, ?> attrs) {
+            Object enabledVal = attrs.get("enabled");
+            if (enabledVal instanceof List<?> list && !list.isEmpty()) {
+                enabled = "true".equalsIgnoreCase(String.valueOf(list.get(0)));
+            } else if (enabledVal != null) {
+                enabled = "true".equalsIgnoreCase(String.valueOf(enabledVal));
+            }
+        }
+
+        return new RoleResponse(
+                (String) r.get("id"),
+                (String) r.get("name"),
+                (String) r.get("description"),
+                (Boolean) r.get("composite"),
+                (Boolean) r.get("clientRole"),
+                (String) r.get("containerId"),
+                enabled
+        );
+    }
+
 
 
     /**
