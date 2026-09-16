@@ -19,23 +19,23 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("Deveria formatar KeycloakException com status, error_code e error_stack")
+    @DisplayName("Deveria formatar KeycloakException com error_code, error_description, error_source e error_stack")
     void testHandleKeycloakException() {
-        KeycloakException ex = new KeycloakException("USER_ALREADY_EXISTS", "Usuário já existe", HttpStatus.CONFLICT);
+        KeycloakException ex = new KeycloakException("409", "Username já existente", HttpStatus.CONFLICT);
 
         ResponseEntity<ErrorResponse> response = exceptionHandler.handleKeycloakException(ex);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals("USER_ALREADY_EXISTS", response.getBody().getErrorCode());
-        assertEquals("Usuário já existe", response.getBody().getMessage());
-        assertEquals(409, response.getBody().getStatus());
+        assertEquals("409", response.getBody().getErrorCode());
+        assertEquals("Username já existente", response.getBody().getErrorDescription());
+        assertEquals("OAuthAPI", response.getBody().getErrorSource());
         assertNotNull(response.getBody().getErrorStack());
-        assertNotNull(response.getBody().getTimestamp());
+        assertFalse(response.getBody().getErrorStack().isEmpty());
     }
 
     @Test
-    @DisplayName("Deveria formatar HttpClientErrorException.Conflict como USER_ALREADY_EXISTS")
+    @DisplayName("Deveria formatar HttpClientErrorException.Conflict com código 409")
     void testHandleHttpClientErrorExceptionConflict() {
         HttpClientErrorException ex = HttpClientErrorException.create(HttpStatus.CONFLICT, "Conflict", null, null, null);
 
@@ -43,11 +43,13 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals("USER_ALREADY_EXISTS", response.getBody().getErrorCode());
+        assertEquals("409", response.getBody().getErrorCode());
+        assertEquals("Username já existente", response.getBody().getErrorDescription());
+        assertEquals("OAuthAPI", response.getBody().getErrorSource());
     }
 
     @Test
-    @DisplayName("Deveria formatar IllegalArgumentException como INVALID_ARGUMENT")
+    @DisplayName("Deveria formatar IllegalArgumentException como código 400")
     void testHandleIllegalArgumentException() {
         IllegalArgumentException ex = new IllegalArgumentException("Parâmetro inválido");
 
@@ -55,12 +57,13 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals("INVALID_ARGUMENT", response.getBody().getErrorCode());
-        assertEquals("Parâmetro inválido", response.getBody().getMessage());
+        assertEquals("400", response.getBody().getErrorCode());
+        assertEquals("Parâmetro inválido", response.getBody().getErrorDescription());
+        assertEquals("OAuthAPI", response.getBody().getErrorSource());
     }
 
     @Test
-    @DisplayName("Deveria formatar exceção genérica como INTERNAL_SERVER_ERROR")
+    @DisplayName("Deveria formatar exceção genérica como código 500")
     void testHandleGenericException() {
         RuntimeException ex = new RuntimeException("Erro inesperado no sistema");
 
@@ -68,7 +71,8 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals("INTERNAL_SERVER_ERROR", response.getBody().getErrorCode());
-        assertEquals("Erro inesperado no sistema", response.getBody().getMessage());
+        assertEquals("500", response.getBody().getErrorCode());
+        assertEquals("Erro inesperado no sistema", response.getBody().getErrorDescription());
+        assertEquals("OAuthAPI", response.getBody().getErrorSource());
     }
 }

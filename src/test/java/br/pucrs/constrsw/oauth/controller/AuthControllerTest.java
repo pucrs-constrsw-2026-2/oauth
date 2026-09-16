@@ -6,6 +6,7 @@ import br.pucrs.constrsw.oauth.dto.ValidateRequest;
 import br.pucrs.constrsw.oauth.dto.ValidateResponse;
 import br.pucrs.constrsw.oauth.exception.KeycloakException;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +36,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        authController = new AuthController(keycloakService, meterRegistry);
+        authController = new AuthController(keycloakService, meterRegistry, new ObjectMapper());
     }
 
     @Test
@@ -47,16 +48,16 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Deveria autenticar com sucesso e retornar 200 OK no POST /login")
+    @DisplayName("Deveria autenticar com sucesso e retornar 201 Created no POST /login")
     void testLoginSuccess() {
         LoginRequest request = new LoginRequest("aluno@pucrs.br", "senha123");
-        LoginResponse mockResponse = new LoginResponse("mock-jwt-token", 300L, 1800L, "mock-refresh-token", "Bearer", "openid");
+        LoginResponse mockResponse = new LoginResponse("Bearer", "mock-jwt-token", 300L, "mock-refresh-token", 1800L, "openid");
 
         when(keycloakService.login(any(LoginRequest.class))).thenReturn(mockResponse);
 
         ResponseEntity<LoginResponse> response = authController.login(request);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("mock-jwt-token", response.getBody().accessToken());
         assertEquals(1.0, meterRegistry.counter("oauth.logins.total", "status", "success").count());
@@ -68,10 +69,10 @@ class AuthControllerTest {
         LoginRequest request = new LoginRequest("aluno@pucrs.br", "senhaErrada");
 
         when(keycloakService.login(any(LoginRequest.class)))
-                .thenThrow(new KeycloakException("INVALID_CREDENTIALS", "Usuário ou senha inválidos", HttpStatus.UNAUTHORIZED));
+                .thenThrow(new KeycloakException("401", "username e/ou password inválidos", HttpStatus.UNAUTHORIZED));
 
         KeycloakException ex = assertThrows(KeycloakException.class, () -> authController.login(request));
-        assertEquals("INVALID_CREDENTIALS", ex.getErrorCode());
+        assertEquals("401", ex.getErrorCode());
         assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
     }
 
@@ -146,7 +147,6 @@ class AuthControllerTest {
         when(keycloakService.extractRoles(anyString())).thenReturn(List.of("professor"));
         when(keycloakService.hasAccessToResource(List.of("professor"), "lessons")).thenReturn(true);
 
-        // Teste POST
         ValidateRequest request = new ValidateRequest("lessons");
         ResponseEntity<ValidateResponse> postResponse = authController.validateAccessPost("Bearer prof-token", request);
 
@@ -156,7 +156,6 @@ class AuthControllerTest {
         assertEquals("prof_user", postResponse.getBody().getUsername());
         assertEquals("lessons", postResponse.getBody().getResource());
 
-        // Teste GET
         ResponseEntity<ValidateResponse> getResponse = authController.validateAccessGet("Bearer prof-token", "lessons");
 
         assertEquals(HttpStatus.OK, getResponse.getStatusCode());

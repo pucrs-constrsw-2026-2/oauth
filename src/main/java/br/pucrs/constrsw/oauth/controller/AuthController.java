@@ -4,15 +4,18 @@ import br.pucrs.constrsw.oauth.dto.LoginRequest;
 import br.pucrs.constrsw.oauth.dto.LoginResponse;
 import br.pucrs.constrsw.oauth.dto.ValidateRequest;
 import br.pucrs.constrsw.oauth.dto.ValidateResponse;
+import br.pucrs.constrsw.oauth.exception.KeycloakException;
 import br.pucrs.constrsw.oauth.service.KeycloakService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
-import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.InputStream;
 import java.util.List;
 
 @RestController
@@ -24,10 +27,12 @@ public class AuthController {
 
     private final KeycloakService keycloakService;
     private final MeterRegistry meterRegistry;
+    private final ObjectMapper objectMapper;
 
-    public AuthController(KeycloakService keycloakService, MeterRegistry meterRegistry) {
+    public AuthController(KeycloakService keycloakService, MeterRegistry meterRegistry, ObjectMapper objectMapper) {
         this.keycloakService = keycloakService;
         this.meterRegistry = meterRegistry;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/health")
@@ -37,13 +42,41 @@ public class AuthController {
 
     /**
      * POST /login: Consumir endpoint de token OAuth2 do Keycloak para gerar o access token.
+     * Suporta multipart/form-data, application/x-www-form-urlencoded e application/json.
+     * Retorna 201 Created.
      */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<LoginResponse> login(HttpServletRequest servletRequest) {
+        String username = servletRequest.getParameter("username");
+        String password = servletRequest.getParameter("password");
+
+        String contentType = servletRequest.getContentType();
+        if ((username == null || password == null) && contentType != null && contentType.contains("application/json")) {
+            try (InputStream is = servletRequest.getInputStream()) {
+                LoginRequest loginReq = objectMapper.readValue(is, LoginRequest.class);
+                if (loginReq != null) {
+                    if (username == null) username = loginReq.username();
+                    if (password == null) password = loginReq.password();
+                }
+            } catch (Exception e) {
+                throw new KeycloakException("400", "Erro na estrutura da chamada: corpo JSON inválido", HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        return login(new LoginRequest(username, password));
+    }
+
+    public ResponseEntity<LoginResponse> login(LoginRequest request) {
+        if (request == null || request.username() == null || request.username().isBlank() ||
+                request.password() == null || request.password().isBlank()) {
+            log.warn("Tentativa de login sem parâmetros obrigatórios username/password");
+            throw new KeycloakException("400", "Erro na estrutura da chamada (headers, request body etc.)", HttpStatus.BAD_REQUEST);
+        }
+
         log.info("Requisição de login recebida para usuário '{}'", request.username());
         LoginResponse response = keycloakService.login(request);
         meterRegistry.counter("oauth.logins.total", "status", "success").increment();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping(value = {"/validate", "/authorize"})
@@ -78,7 +111,6 @@ public class AuthController {
                     .body(ValidateResponse.forbidden("Resource must be specified", null, null, List.of()));
         }
 
-        // 1. Valida o access token com o Keycloak
         boolean isTokenValid = keycloakService.isTokenValidWithKeycloak(authHeader);
         if (!isTokenValid) {
             log.warn("Access token inválido ou expirado");
@@ -87,11 +119,9 @@ public class AuthController {
                     .body(ValidateResponse.forbidden("Invalid or expired access token", null, resource, List.of()));
         }
 
-        // 2. Extrai dados do usuário e roles
         String username = keycloakService.extractUsername(authHeader);
         List<String> roles = keycloakService.extractRoles(authHeader);
 
-        // 3. Verifica se algum dos roles dá acesso ao resource requisitado
         boolean hasAccess = keycloakService.hasAccessToResource(roles, resource);
 
         if (hasAccess) {

@@ -42,8 +42,8 @@ class UserControllerTest {
     @Test
     @DisplayName("Deveria listar usuários com e sem filtro enabled")
     void testGetUsersSuccess() {
-        UserResponse u1 = new UserResponse("id-1", "user1", "user1@pucrs.br", "User", "One", true);
-        UserResponse u2 = new UserResponse("id-2", "user2", "user2@pucrs.br", "User", "Two", true);
+        UserResponse u1 = new UserResponse("id-1", "user1@pucrs.br", "User", "One", true);
+        UserResponse u2 = new UserResponse("id-2", "user2@pucrs.br", "User", "Two", true);
 
         when(keycloakService.getUsers(true)).thenReturn(List.of(u1, u2));
 
@@ -52,14 +52,14 @@ class UserControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(2, response.getBody().size());
-        assertEquals("user1", response.getBody().get(0).username());
+        assertEquals("user1@pucrs.br", response.getBody().get(0).username());
         assertEquals(1.0, meterRegistry.counter("oauth.users.listed.total").count());
     }
 
     @Test
     @DisplayName("Deveria buscar usuário por ID com sucesso")
     void testGetUserByIdSuccess() {
-        UserResponse u1 = new UserResponse("id-1", "user1", "user1@pucrs.br", "User", "One", true);
+        UserResponse u1 = new UserResponse("id-1", "user1@pucrs.br", "User", "One", true);
         when(keycloakService.getUserById("id-1")).thenReturn(u1);
 
         ResponseEntity<UserResponse> response = userController.getUserById("id-1");
@@ -67,7 +67,7 @@ class UserControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("id-1", response.getBody().id());
-        assertEquals("user1@pucrs.br", response.getBody().email());
+        assertEquals("user1@pucrs.br", response.getBody().username());
         assertEquals(1.0, meterRegistry.counter("oauth.users.retrieved.total").count());
     }
 
@@ -75,10 +75,10 @@ class UserControllerTest {
     @DisplayName("Deveria lançar 404 quando usuário não existir na busca por ID")
     void testGetUserByIdNotFound() {
         when(keycloakService.getUserById("nao-existe"))
-                .thenThrow(new KeycloakException("USER_NOT_FOUND", "Usuário não encontrado", HttpStatus.NOT_FOUND));
+                .thenThrow(new KeycloakException("404", "Objeto não localizado", HttpStatus.NOT_FOUND));
 
         KeycloakException ex = assertThrows(KeycloakException.class, () -> userController.getUserById("nao-existe"));
-        assertEquals("USER_NOT_FOUND", ex.getErrorCode());
+        assertEquals("404", ex.getErrorCode());
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
     }
 
@@ -95,7 +95,6 @@ class UserControllerTest {
         );
         UserResponse mockResponse = new UserResponse(
                 "uuid-12345",
-                "novo_aluno@pucrs.br",
                 "novo_aluno@pucrs.br",
                 "Novo",
                 "Aluno",
@@ -127,15 +126,15 @@ class UserControllerTest {
         );
 
         when(keycloakService.createUser(any(CreateUserRequest.class)))
-                .thenThrow(new KeycloakException("USER_ALREADY_EXISTS", "Usuário ou e-mail já cadastrado", HttpStatus.CONFLICT));
+                .thenThrow(new KeycloakException("409", "Username já existente", HttpStatus.CONFLICT));
 
         KeycloakException ex = assertThrows(KeycloakException.class, () -> userController.createUser(request));
-        assertEquals("USER_ALREADY_EXISTS", ex.getErrorCode());
+        assertEquals("409", ex.getErrorCode());
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
     }
 
     @Test
-    @DisplayName("Deveria atualizar senha e retornar 204 No Content")
+    @DisplayName("Deveria atualizar senha e retornar 200 OK com corpo vazio")
     void testUpdatePasswordSuccess() {
         UpdatePasswordRequest request = new UpdatePasswordRequest("novaSenha123", false);
 
@@ -143,7 +142,8 @@ class UserControllerTest {
 
         ResponseEntity<Void> response = userController.updatePassword("uuid-12345", request);
 
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(response.getBody());
         assertEquals(1.0, meterRegistry.counter("oauth.users.password_updated.total").count());
     }
 
@@ -152,11 +152,11 @@ class UserControllerTest {
     void testUpdatePasswordNotFound() {
         UpdatePasswordRequest request = new UpdatePasswordRequest("novaSenha123", false);
 
-        doThrow(new KeycloakException("USER_NOT_FOUND", "Usuário não encontrado", HttpStatus.NOT_FOUND))
+        doThrow(new KeycloakException("404", "Objeto não localizado", HttpStatus.NOT_FOUND))
                 .when(keycloakService).updatePassword(eq("invalido-id"), any(UpdatePasswordRequest.class));
 
         KeycloakException ex = assertThrows(KeycloakException.class, () -> userController.updatePassword("invalido-id", request));
-        assertEquals("USER_NOT_FOUND", ex.getErrorCode());
+        assertEquals("404", ex.getErrorCode());
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
     }
 
@@ -183,19 +183,17 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("Deveria atualizar dados do usuário via PUT e retornar 200 OK")
+    @DisplayName("Deveria atualizar dados do usuário via PUT e retornar 200 OK com corpo vazio")
     void testUpdateUserSuccess() {
         UpdateUserRequest request = new UpdateUserRequest("novo.email@pucrs.br", "NovoNome", "NovoSobrenome", true);
-        UserResponse mockResponse = new UserResponse("user-1", "user1", "novo.email@pucrs.br", "NovoNome", "NovoSobrenome", true);
+        UserResponse mockResponse = new UserResponse("user-1", "novo.email@pucrs.br", "NovoNome", "NovoSobrenome", true);
 
         when(keycloakService.updateUser(eq("user-1"), any(UpdateUserRequest.class))).thenReturn(mockResponse);
 
-        ResponseEntity<UserResponse> response = userController.updateUser("user-1", request);
+        ResponseEntity<Void> response = userController.updateUser("user-1", request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals("NovoNome", response.getBody().firstName());
-        assertEquals("novo.email@pucrs.br", response.getBody().email());
+        assertNull(response.getBody());
         assertEquals(1.0, meterRegistry.counter("oauth.users.updated.total").count());
     }
 

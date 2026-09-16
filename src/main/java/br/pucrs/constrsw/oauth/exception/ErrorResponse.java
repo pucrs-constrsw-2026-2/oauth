@@ -1,9 +1,11 @@
 package br.pucrs.constrsw.oauth.exception;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ErrorResponse {
@@ -11,28 +13,32 @@ public class ErrorResponse {
     @JsonProperty("error_code")
     private String errorCode;
 
-    @JsonProperty("message")
-    private String message;
+    @JsonProperty("error_description")
+    private String errorDescription;
+
+    @JsonProperty("error_source")
+    private String errorSource = "OAuthAPI";
 
     @JsonProperty("error_stack")
-    private String errorStack;
-
-    @JsonProperty("status")
-    private int status;
-
-    @JsonProperty("timestamp")
-    private Instant timestamp;
+    private List<ErrorItem> errorStack = new ArrayList<>();
 
     public ErrorResponse() {
-        this.timestamp = Instant.now();
+        this.errorSource = "OAuthAPI";
     }
 
-    public ErrorResponse(String errorCode, String message, String errorStack, int status) {
+    public ErrorResponse(String errorCode, String errorDescription) {
         this.errorCode = errorCode;
-        this.message = message;
-        this.errorStack = errorStack;
-        this.status = status;
-        this.timestamp = Instant.now();
+        this.errorDescription = errorDescription;
+        this.errorSource = "OAuthAPI";
+        this.errorStack = new ArrayList<>();
+        this.errorStack.add(new ErrorItem(errorCode, errorDescription, "OAuthAPI"));
+    }
+
+    public ErrorResponse(String errorCode, String errorDescription, String errorSource, List<ErrorItem> errorStack) {
+        this.errorCode = errorCode;
+        this.errorDescription = errorDescription;
+        this.errorSource = errorSource != null ? errorSource : "OAuthAPI";
+        this.errorStack = errorStack != null ? errorStack : new ArrayList<>();
     }
 
     public String getErrorCode() {
@@ -43,35 +49,45 @@ public class ErrorResponse {
         this.errorCode = errorCode;
     }
 
-    public String getMessage() {
-        return message;
+    public String getErrorDescription() {
+        return errorDescription;
     }
 
-    public void setMessage(String message) {
-        this.message = message;
+    public void setErrorDescription(String errorDescription) {
+        this.errorDescription = errorDescription;
     }
 
-    public String getErrorStack() {
+    public String getErrorSource() {
+        return errorSource;
+    }
+
+    public void setErrorSource(String errorSource) {
+        this.errorSource = errorSource;
+    }
+
+    public List<ErrorItem> getErrorStack() {
         return errorStack;
     }
 
-    public void setErrorStack(String errorStack) {
+    public void setErrorStack(List<ErrorItem> errorStack) {
         this.errorStack = errorStack;
     }
 
-    public int getStatus() {
-        return status;
+    @JsonIgnore
+    public String getMessage() {
+        return errorDescription;
     }
 
-    public void setStatus(int status) {
-        this.status = status;
+    public void setMessage(String message) {
+        this.errorDescription = message;
     }
 
-    public Instant getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(Instant timestamp) {
-        this.timestamp = timestamp;
+    @JsonIgnore
+    public Integer getStatus() {
+        try {
+            return Integer.parseInt(errorCode);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

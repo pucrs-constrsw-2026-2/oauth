@@ -1,28 +1,43 @@
 package br.pucrs.constrsw.oauth.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record CreateUserRequest(
         @NotBlank(message = "Username é obrigatório")
+        @Pattern(
+                regexp = "^([!-#-'*+/-9=?A-Z\\^-~]+(\\.[!-#-'*+/-9=?A-Z\\^-~]+)*|\"([!#-\\[\\^-~ \\t]|(\\\\[\\t -~]))+\")@([!-#-'*+/-9=?A-Z\\^-~]+(\\.[!-#-'*+/-9=?A-Z\\^-~]+)*|\\[[\\t -Z\\^-~]*\\])$",
+                message = "E-mail inválido - RFC 5322 official standard regular expression to validate email addresses"
+        )
         String username,
 
-        @NotBlank(message = "Email é obrigatório")
-        @Pattern(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", message = "Formato de email inválido")
+        @Pattern(
+                regexp = "^([!-#-'*+/-9=?A-Z\\^-~]+(\\.[!-#-'*+/-9=?A-Z\\^-~]+)*|\"([!#-\\[\\^-~ \\t]|(\\\\[\\t -~]))+\")@([!-#-'*+/-9=?A-Z\\^-~]+(\\.[!-#-'*+/-9=?A-Z\\^-~]+)*|\\[[\\t -Z\\^-~]*\\])$",
+                message = "E-mail inválido - RFC 5322 official standard regular expression to validate email addresses"
+        )
         String email,
 
-        @JsonProperty("first_name")
+        @JsonProperty("first-name")
+        @JsonAlias({"first_name", "firstName"})
         String firstName,
 
-        @JsonProperty("last_name")
+        @JsonProperty("last-name")
+        @JsonAlias({"last_name", "lastName"})
         String lastName,
 
         Boolean enabled,
 
+        @NotBlank(message = "Password é obrigatório")
         String password
 ) {
     public CreateUserRequest {
+        if (email == null || email.isBlank()) {
+            email = username;
+        }
         if (enabled == null) {
             enabled = true;
         }

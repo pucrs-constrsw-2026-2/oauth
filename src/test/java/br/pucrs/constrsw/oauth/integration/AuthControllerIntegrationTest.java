@@ -42,32 +42,34 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Integração: POST /login com credenciais válidas deve retornar 200 OK com tokens")
+    @DisplayName("Integração: POST /login com credenciais válidas deve retornar 201 Created com tokens")
     void testLoginSuccess() throws Exception {
-        LoginResponse response = new LoginResponse("access-token-jwt", 300L, 1800L, "refresh-token-jwt", "Bearer", "openid");
+        LoginResponse response = new LoginResponse("Bearer", "access-token-jwt", 300L, "refresh-token-jwt", 1800L, "openid");
         when(keycloakService.login(any(LoginRequest.class))).thenReturn(response);
 
         mockMvc.perform(post("/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"student@pucrs.br\",\"password\":\"a12345678\"}"))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.access_token").value("access-token-jwt"))
                 .andExpect(jsonPath("$.token_type").value("Bearer"))
-                .andExpect(jsonPath("$.expires_in").value(300));
+                .andExpect(jsonPath("$.expires_in").value(300))
+                .andExpect(jsonPath("$.referesh_expires_in").value(1800))
+                .andExpect(jsonPath("$.refresh_expires_in").value(1800));
     }
 
     @Test
-    @DisplayName("Integração: POST /login com credenciais inválidas deve retornar 401 INVALID_CREDENTIALS")
+    @DisplayName("Integração: POST /login com credenciais inválidas deve retornar 401")
     void testLoginInvalidCredentials() throws Exception {
         when(keycloakService.login(any(LoginRequest.class)))
-                .thenThrow(new KeycloakException("INVALID_CREDENTIALS", "Usuário ou senha inválidos", HttpStatus.UNAUTHORIZED));
+                .thenThrow(new KeycloakException("401", "username e/ou password inválidos", HttpStatus.UNAUTHORIZED));
 
         mockMvc.perform(post("/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"student@pucrs.br\",\"password\":\"senha-errada\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error_code").value("INVALID_CREDENTIALS"))
-                .andExpect(jsonPath("$.status").value(401));
+                .andExpect(jsonPath("$.error_code").value("401"))
+                .andExpect(jsonPath("$.error_source").value("OAuthAPI"));
     }
 
     @Test

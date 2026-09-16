@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -23,12 +23,31 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(KeycloakException.class)
     public ResponseEntity<ErrorResponse> handleKeycloakException(KeycloakException ex) {
         log.error("KeycloakException [{}]: {}", ex.getErrorCode(), ex.getMessage());
-        ErrorResponse errorResponse = new ErrorResponse(
-                ex.getErrorCode(),
-                ex.getMessage(),
-                getStackTraceAsString(ex),
-                ex.getStatus().value()
-        );
+        String code = String.valueOf(ex.getStatus().value());
+        String desc = ex.getMessage();
+
+        if (ex.getStatus() == HttpStatus.NOT_FOUND) {
+            desc = "Objeto não localizado";
+        } else if (ex.getStatus() == HttpStatus.CONFLICT) {
+            if ("ROLE_ALREADY_EXISTS".equals(ex.getErrorCode())) {
+                desc = "Objeto já existente";
+            } else {
+                desc = "Username já existente";
+            }
+        } else if (ex.getStatus() == HttpStatus.UNAUTHORIZED) {
+            desc = "username e/ou password inválidos";
+        } else if (ex.getStatus() == HttpStatus.FORBIDDEN) {
+            desc = "Access token não concede permissão para acessar esse endpoint ou objeto";
+        }
+
+        List<ErrorItem> stack = new ArrayList<>();
+        String kcMsg = ex.getCause() != null && ex.getCause().getMessage() != null
+                ? ex.getCause().getMessage()
+                : desc;
+        stack.add(new ErrorItem(code, kcMsg, "Keycloak"));
+        stack.add(new ErrorItem(code, desc, "OAuthAPI"));
+
+        ErrorResponse errorResponse = new ErrorResponse(code, desc, "OAuthAPI", stack);
         return ResponseEntity.status(ex.getStatus()).body(errorResponse);
     }
 
@@ -39,76 +58,71 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining(", "));
 
         log.warn("Erro de validação de argumentos: {}", validationErrors);
-        ErrorResponse errorResponse = new ErrorResponse(
-                "VALIDATION_ERROR",
-                validationErrors,
-                getStackTraceAsString(ex),
-                HttpStatus.BAD_REQUEST.value()
-        );
+        List<ErrorItem> stack = new ArrayList<>();
+        stack.add(new ErrorItem("400", validationErrors, "OAuthAPI"));
+
+        ErrorResponse errorResponse = new ErrorResponse("400", validationErrors, "OAuthAPI", stack);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
     @ExceptionHandler(HttpClientErrorException.class)
     public ResponseEntity<ErrorResponse> handleHttpClientErrorException(HttpClientErrorException ex) {
         log.error("HttpClientErrorException: status={}, body={}", ex.getStatusCode(), ex.getResponseBodyAsString());
-        String code = "KEYCLOAK_CLIENT_ERROR";
+        String code = String.valueOf(ex.getStatusCode().value());
+        String description = ex.getStatusText() != null ? ex.getStatusText() : ex.getMessage();
+
         if (ex.getStatusCode() == HttpStatus.CONFLICT) {
-            code = "USER_ALREADY_EXISTS";
-        } else if (ex.getStatusCode() == HttpStatus.UNAUTHORIZED || ex.getStatusCode() == HttpStatus.BAD_REQUEST) {
-            code = "INVALID_CREDENTIALS";
+            description = "Username já existente";
         } else if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
-            code = "RESOURCE_NOT_FOUND";
+            description = "Objeto não localizado";
+        } else if (ex.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+            description = "Access token inválido";
+        } else if (ex.getStatusCode() == HttpStatus.FORBIDDEN) {
+            description = "Access token não concede permissão para acessar esse endpoint ou objeto";
         }
 
-        ErrorResponse errorResponse = new ErrorResponse(
-                code,
-                ex.getStatusText() != null ? ex.getStatusText() : ex.getMessage(),
-                getStackTraceAsString(ex),
-                ex.getStatusCode().value()
-        );
+        List<ErrorItem> stack = new ArrayList<>();
+        String kcDetails = ex.getResponseBodyAsString().isBlank() ? ex.getMessage() : ex.getResponseBodyAsString();
+        stack.add(new ErrorItem(code, kcDetails, "Keycloak"));
+        stack.add(new ErrorItem(code, description, "OAuthAPI"));
+
+        ErrorResponse errorResponse = new ErrorResponse(code, description, "OAuthAPI", stack);
         return ResponseEntity.status(ex.getStatusCode()).body(errorResponse);
     }
 
     @ExceptionHandler(HttpServerErrorException.class)
     public ResponseEntity<ErrorResponse> handleHttpServerErrorException(HttpServerErrorException ex) {
         log.error("HttpServerErrorException do Keycloak: {}", ex.getMessage());
-        ErrorResponse errorResponse = new ErrorResponse(
-                "KEYCLOAK_SERVER_ERROR",
-                "Erro interno no provedor de autenticação Keycloak",
-                getStackTraceAsString(ex),
-                ex.getStatusCode().value()
-        );
+        String code = String.valueOf(ex.getStatusCode().value());
+        String desc = "Erro interno no provedor de autenticação Keycloak";
+
+        List<ErrorItem> stack = new ArrayList<>();
+        stack.add(new ErrorItem(code, ex.getMessage(), "Keycloak"));
+        stack.add(new ErrorItem(code, desc, "OAuthAPI"));
+
+        ErrorResponse errorResponse = new ErrorResponse(code, desc, "OAuthAPI", stack);
         return ResponseEntity.status(ex.getStatusCode()).body(errorResponse);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
         log.warn("IllegalArgumentException: {}", ex.getMessage());
-        ErrorResponse errorResponse = new ErrorResponse(
-                "INVALID_ARGUMENT",
-                ex.getMessage(),
-                getStackTraceAsString(ex),
-                HttpStatus.BAD_REQUEST.value()
-        );
+        List<ErrorItem> stack = new ArrayList<>();
+        stack.add(new ErrorItem("400", ex.getMessage(), "OAuthAPI"));
+
+        ErrorResponse errorResponse = new ErrorResponse("400", ex.getMessage(), "OAuthAPI", stack);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Erro interno não tratado: {}", ex.getMessage(), ex);
-        ErrorResponse errorResponse = new ErrorResponse(
-                "INTERNAL_SERVER_ERROR",
-                ex.getMessage() != null ? ex.getMessage() : "Ocorreu um erro interno inesperado",
-                getStackTraceAsString(ex),
-                HttpStatus.INTERNAL_SERVER_ERROR.value()
-        );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-    }
+        String desc = ex.getMessage() != null ? ex.getMessage() : "Ocorreu um erro interno inesperado";
 
-    private String getStackTraceAsString(Throwable throwable) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        throwable.printStackTrace(pw);
-        return sw.toString();
+        List<ErrorItem> stack = new ArrayList<>();
+        stack.add(new ErrorItem("500", desc, "OAuthAPI"));
+
+        ErrorResponse errorResponse = new ErrorResponse("500", desc, "OAuthAPI", stack);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
 }

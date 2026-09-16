@@ -67,20 +67,22 @@ public class UserController {
     }
 
     /**
-     * PUT /users/{id}: Atualizar dados de cadastro de um usuário (first-name, last-name, email, enabled).
+     * PUT /users/{id}: Atualizar dados de cadastro de um usuário.
+     * Retorna 200 OK com corpo vazio.
      */
     @PutMapping("/{id}")
-    public ResponseEntity<UserResponse> updateUser(
+    public ResponseEntity<Void> updateUser(
             @PathVariable("id") String id,
             @Valid @RequestBody UpdateUserRequest request) {
         log.info("Requisição para atualização de cadastro do usuário id='{}'", id);
-        UserResponse updated = keycloakService.updateUser(id, request);
+        keycloakService.updateUser(id, request);
         meterRegistry.counter("oauth.users.updated.total").increment();
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok().build();
     }
 
     /**
      * DELETE /users/{id}: Deleção lógica de usuário (mudar enabled para false).
+     * Retorna 204 No Content com corpo vazio.
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable("id") String id) {
@@ -92,7 +94,7 @@ public class UserController {
 
     /**
      * PATCH /users/{id}: Atualizar senha do usuário no Keycloak.
-     * Retorna 204 No Content após sucesso.
+     * Retorna 200 OK com corpo vazio.
      */
     @PatchMapping("/{id}")
     public ResponseEntity<Void> updatePassword(
@@ -101,11 +103,11 @@ public class UserController {
         log.info("Requisição para atualização de senha do usuário id='{}'", id);
         keycloakService.updatePassword(id, request);
         meterRegistry.counter("oauth.users.password_updated.total").increment();
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok().build();
     }
 
     /**
-     * POST /users/{id}/roles/{roleId}: Atribuir uma Role a um usuário (API de role-mapping do Keycloak).
+     * POST /users/{id}/roles/{roleId}: Atribuir uma Role a um usuário.
      */
     @PostMapping("/{id}/roles/{roleId}")
     public ResponseEntity<Void> assignRoleToUser(

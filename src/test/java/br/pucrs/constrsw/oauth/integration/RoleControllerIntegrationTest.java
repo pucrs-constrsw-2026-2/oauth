@@ -57,7 +57,7 @@ class RoleControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"\",\"description\":\"Desc\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error_code").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.error_code").value("400"));
     }
 
     @Test
@@ -70,7 +70,7 @@ class RoleControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"duplicado\"}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error_code").value("ROLE_ALREADY_EXISTS"));
+                .andExpect(jsonPath("$.error_code").value("409"));
     }
 
     @Test
@@ -104,7 +104,7 @@ class RoleControllerIntegrationTest {
 
         mockMvc.perform(get("/roles/inexistente"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error_code").value("ROLE_NOT_FOUND"));
+                .andExpect(jsonPath("$.error_code").value("404"));
     }
 
     @Test
