@@ -363,5 +363,103 @@ final class KeycloakRoleAdapterTest extends TestCase
 
         $this->adapter->disableRole('inexistente');
     }
+
+    public function testAssignRoleToUserSuccess(): void
+    {
+        $this->httpClient
+            ->expects($this->exactly(3))
+            ->method('requestAdmin')
+            ->willReturnCallback(function (string $method, string $path, array $headers, ?string $body, bool $mapUserExceptions) {
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/users/user-123') {
+                    return ['status' => 200, 'headers' => [], 'data' => ['id' => 'user-123', 'username' => 'test@pucrs.br'], 'raw' => ''];
+                }
+
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/roles-by-id/role-456') {
+                    return ['status' => 200, 'headers' => [], 'data' => ['id' => 'role-456', 'name' => 'professor', 'attributes' => ['enabled' => ['true']]], 'raw' => ''];
+                }
+
+                if ($method === 'POST' && $path === 'admin/realms/constrsw/users/user-123/role-mappings/realm') {
+                    $decoded = json_decode((string) $body, true);
+                    $this->assertSame('role-456', $decoded[0]['id']);
+                    $this->assertSame('professor', $decoded[0]['name']);
+                    return ['status' => 204, 'headers' => [], 'data' => [], 'raw' => ''];
+                }
+
+                $this->fail("Chamada inesperada: {$method} {$path}");
+            });
+
+        $result = $this->adapter->assignRoleToUser('user-123', 'role-456');
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('user-123', $result['userId']);
+        $this->assertSame('role-456', $result['roleId']);
+        $this->assertSame('professor', $result['roleName']);
+    }
+
+    public function testAssignRoleToUserThrowsUserNotFoundExceptionWhenUserNotFound(): void
+    {
+        $this->httpClient
+            ->expects($this->once())
+            ->method('requestAdmin')
+            ->with('GET', 'admin/realms/constrsw/users/inexistente', [], null, false)
+            ->willReturn(['status' => 404, 'headers' => [], 'data' => [], 'raw' => '']);
+
+        $this->expectException(\App\Domain\Exception\UserNotFoundException::class);
+
+        $this->adapter->assignRoleToUser('inexistente', 'role-1');
+    }
+
+    public function testAssignRoleToUserThrowsRoleNotFoundExceptionWhenRoleNotFound(): void
+    {
+        $this->httpClient
+            ->expects($this->exactly(3))
+            ->method('requestAdmin')
+            ->willReturnCallback(function (string $method, string $path, array $headers, ?string $body, bool $mapUserExceptions) {
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/users/user-1') {
+                    return ['status' => 200, 'headers' => [], 'data' => ['id' => 'user-1'], 'raw' => ''];
+                }
+
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/roles-by-id/role-inexistente') {
+                    return ['status' => 404, 'headers' => [], 'data' => [], 'raw' => ''];
+                }
+
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/roles/role-inexistente') {
+                    return ['status' => 404, 'headers' => [], 'data' => [], 'raw' => ''];
+                }
+
+                $this->fail("Chamada inesperada: {$method} {$path}");
+            });
+
+        $this->expectException(\App\Domain\Exception\RoleNotFoundException::class);
+
+        $this->adapter->assignRoleToUser('user-1', 'role-inexistente');
+    }
+
+    public function testRemoveRoleFromUserSuccess(): void
+    {
+        $this->httpClient
+            ->expects($this->exactly(3))
+            ->method('requestAdmin')
+            ->willReturnCallback(function (string $method, string $path, array $headers, ?string $body, bool $mapUserExceptions) {
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/users/user-123') {
+                    return ['status' => 200, 'headers' => [], 'data' => ['id' => 'user-123'], 'raw' => ''];
+                }
+
+                if ($method === 'GET' && $path === 'admin/realms/constrsw/roles-by-id/role-456') {
+                    return ['status' => 200, 'headers' => [], 'data' => ['id' => 'role-456', 'name' => 'professor', 'attributes' => ['enabled' => ['true']]], 'raw' => ''];
+                }
+
+                if ($method === 'DELETE' && $path === 'admin/realms/constrsw/users/user-123/role-mappings/realm') {
+                    $decoded = json_decode((string) $body, true);
+                    $this->assertSame('role-456', $decoded[0]['id']);
+                    return ['status' => 204, 'headers' => [], 'data' => [], 'raw' => ''];
+                }
+
+                $this->fail("Chamada inesperada: {$method} {$path}");
+            });
+
+        $this->adapter->removeRoleFromUser('user-123', 'role-456');
+        $this->assertTrue(true);
+    }
 }
 

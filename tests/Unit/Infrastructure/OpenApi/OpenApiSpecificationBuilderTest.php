@@ -80,6 +80,21 @@ final class OpenApiSpecificationBuilderTest extends TestCase
         $this->assertArrayHasKey('security', $roleDeleteOp);
         $this->assertArrayHasKey('204', $roleDeleteOp['responses']);
 
+        // Valida endpoints de atribuição de roles a usuários (FR-17, FR-18)
+        $this->assertArrayHasKey('/users/{userId}/roles', $paths);
+        $this->assertArrayHasKey('post', $paths['/users/{userId}/roles']);
+        $assignOp = $paths['/users/{userId}/roles']['post'];
+        $this->assertSame(['Usuários'], $assignOp['tags']);
+        $this->assertArrayHasKey('security', $assignOp);
+        $this->assertArrayHasKey('200', $assignOp['responses']);
+
+        $this->assertArrayHasKey('/users/{userId}/roles/{roleId}', $paths);
+        $this->assertArrayHasKey('delete', $paths['/users/{userId}/roles/{roleId}']);
+        $unassignOp = $paths['/users/{userId}/roles/{roleId}']['delete'];
+        $this->assertSame(['Usuários'], $unassignOp['tags']);
+        $this->assertArrayHasKey('security', $unassignOp);
+        $this->assertArrayHasKey('204', $unassignOp['responses']);
+
         // Valida endpoint de autorização (FR-10)
         $authzOp = $paths['/authorize']['post'];
         $this->assertSame(['Autorização'], $authzOp['tags']);
@@ -109,6 +124,8 @@ final class OpenApiSpecificationBuilderTest extends TestCase
         $this->assertArrayHasKey('RoleResponse', $schemas);
         $this->assertArrayHasKey('UpdateRoleRequest', $schemas);
         $this->assertArrayHasKey('PatchRoleRequest', $schemas);
+        $this->assertArrayHasKey('AssignRoleRequest', $schemas);
+        $this->assertArrayHasKey('AssignRoleResponse', $schemas);
         $this->assertArrayHasKey('AuthorizeRequest', $schemas);
         $this->assertArrayHasKey('AuthorizeResponse', $schemas);
         $this->assertArrayHasKey('HealthResponse', $schemas);

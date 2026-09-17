@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-02-2026 15:33
-last_updated: 09-16-2026 19:54
+last_updated: 09-16-2026 21:01
 project: oauth
 project_key: NOKEY
 tracking_system: file-system
@@ -62,10 +62,10 @@ development_status:
   5-1-provisionamento-do-serviço-grafana-no-compose-raiz: backlog
   5-2-instrumentação-de-métricas-do-oauth-e-exposição-no-padrão-p: done
 
-  epic-6: in-progress
+  epic-6: done
   6-1-criacao-e-consulta-de-roles-post-roles-e-get-roles: done
   6-2-atualizacao-e-exclusao-logica-de-roles-put-patch-delete: done
-  6-3-atribuicao-e-desassociacao-de-roles-a-usuarios: backlog
+  6-3-atribuicao-e-desassociacao-de-roles-a-usuarios: done
   epic-6-retrospective: optional
 
 

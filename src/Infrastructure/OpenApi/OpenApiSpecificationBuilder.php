@@ -624,6 +624,44 @@ final class OpenApiSpecificationBuilder
                     ],
                 ],
             ],
+            'AssignRoleRequest' => [
+                'type' => 'object',
+                'description' => 'Payload para atribuição de papel a usuário no Keycloak.',
+                'properties' => [
+                    'roleId' => [
+                        'type' => 'string',
+                        'description' => 'Identificador único (UUID) da role a ser associada.',
+                        'example' => 'a1c0b001-0000-4000-a000-000000000003',
+                    ],
+                    'name' => [
+                        'type' => 'string',
+                        'description' => 'Nome da role a ser associada (caso não utilize roleId).',
+                        'example' => 'professor',
+                    ],
+                ],
+            ],
+            'AssignRoleResponse' => [
+                'type' => 'object',
+                'properties' => [
+                    'success' => [
+                        'type' => 'boolean',
+                        'example' => true,
+                    ],
+                    'userId' => [
+                        'type' => 'string',
+                        'format' => 'uuid',
+                        'example' => 'b2d1c002-0000-4000-b000-000000000003',
+                    ],
+                    'roleId' => [
+                        'type' => 'string',
+                        'example' => 'a1c0b001-0000-4000-a000-000000000003',
+                    ],
+                    'roleName' => [
+                        'type' => 'string',
+                        'example' => 'professor',
+                    ],
+                ],
+            ],
             'AuthorizeRequest' => [
                 'type' => 'object',
                 'required' => ['resource'],
@@ -1087,6 +1125,99 @@ final class OpenApiSpecificationBuilder
                         ],
                         '404' => [
                             'description' => 'Usuário não encontrado.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            '/users/{userId}/roles' => [
+                'post' => [
+                    'tags' => ['Usuários'],
+                    'summary' => 'Atribuir papel a usuário (FR-17)',
+                    'description' => 'Associa uma Realm Role ao usuário especificado através da Role Mapping API do Keycloak.',
+                    'security' => [
+                        ['bearerAuth' => []],
+                    ],
+                    'parameters' => [
+                        [
+                            'name' => 'userId',
+                            'in' => 'path',
+                            'required' => true,
+                            'description' => 'UUID do usuário no Keycloak.',
+                            'schema' => ['type' => 'string', 'format' => 'uuid'],
+                        ],
+                    ],
+                    'requestBody' => [
+                        'required' => true,
+                        'description' => 'Identificador ou nome da role a ser atribuída.',
+                        'content' => [
+                            'application/json' => [
+                                'schema' => ['$ref' => '#/components/schemas/AssignRoleRequest'],
+                            ],
+                        ],
+                    ],
+                    'responses' => [
+                        '200' => [
+                            'description' => 'Papel associado ao usuário com sucesso.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/AssignRoleResponse'],
+                                ],
+                            ],
+                        ],
+                        '400' => [
+                            'description' => 'Identificador do papel ausente ou inválido.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                        '404' => [
+                            'description' => 'Usuário ou papel não encontrado.',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            '/users/{userId}/roles/{roleId}' => [
+                'delete' => [
+                    'tags' => ['Usuários'],
+                    'summary' => 'Desassociar papel de usuário (FR-18)',
+                    'description' => 'Revoga a atribuição de um papel do usuário especificado através da Role Mapping API do Keycloak.',
+                    'security' => [
+                        ['bearerAuth' => []],
+                    ],
+                    'parameters' => [
+                        [
+                            'name' => 'userId',
+                            'in' => 'path',
+                            'required' => true,
+                            'description' => 'UUID do usuário no Keycloak.',
+                            'schema' => ['type' => 'string', 'format' => 'uuid'],
+                        ],
+                        [
+                            'name' => 'roleId',
+                            'in' => 'path',
+                            'required' => true,
+                            'description' => 'UUID ou nome da role a ser revogada.',
+                            'schema' => ['type' => 'string'],
+                        ],
+                    ],
+                    'responses' => [
+                        '204' => [
+                            'description' => 'Atribuição revogada com sucesso (sem conteúdo).',
+                        ],
+                        '404' => [
+                            'description' => 'Usuário ou papel não encontrado.',
                             'content' => [
                                 'application/json' => [
                                     'schema' => ['$ref' => '#/components/schemas/ErrorResponse'],

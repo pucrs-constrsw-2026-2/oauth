@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\Infrastructure\Http\Controller;
 
+use App\Application\DTO\Role\AssignRoleDTO;
 use App\Application\DTO\Role\CreateRoleDTO;
 use App\Application\DTO\Role\RoleDTO;
 use App\Application\DTO\Role\UpdateRoleDTO;
+use App\Domain\Port\Inbound\AssignUserRoleUseCaseInterface;
 use App\Domain\Port\Inbound\CreateRoleUseCaseInterface;
 use App\Domain\Port\Inbound\DeleteRoleUseCaseInterface;
 use App\Domain\Port\Inbound\GetRoleByIdUseCaseInterface;
 use App\Domain\Port\Inbound\ListRolesUseCaseInterface;
+use App\Domain\Port\Inbound\UnassignUserRoleUseCaseInterface;
 use App\Domain\Port\Inbound\UpdateRoleUseCaseInterface;
 use App\Infrastructure\Http\Controller\RoleController;
 use PHPUnit\Framework\TestCase;
@@ -24,6 +27,8 @@ final class RoleControllerTest extends TestCase
     private GetRoleByIdUseCaseInterface $getRoleByIdUseCase;
     private UpdateRoleUseCaseInterface $updateRoleUseCase;
     private DeleteRoleUseCaseInterface $deleteRoleUseCase;
+    private AssignUserRoleUseCaseInterface $assignUserRoleUseCase;
+    private UnassignUserRoleUseCaseInterface $unassignUserRoleUseCase;
     private RoleController $controller;
 
     protected function setUp(): void
@@ -33,13 +38,17 @@ final class RoleControllerTest extends TestCase
         $this->getRoleByIdUseCase = $this->createMock(GetRoleByIdUseCaseInterface::class);
         $this->updateRoleUseCase = $this->createMock(UpdateRoleUseCaseInterface::class);
         $this->deleteRoleUseCase = $this->createMock(DeleteRoleUseCaseInterface::class);
+        $this->assignUserRoleUseCase = $this->createMock(AssignUserRoleUseCaseInterface::class);
+        $this->unassignUserRoleUseCase = $this->createMock(UnassignUserRoleUseCaseInterface::class);
 
         $this->controller = new RoleController(
             $this->createRoleUseCase,
             $this->listRolesUseCase,
             $this->getRoleByIdUseCase,
             $this->updateRoleUseCase,
-            $this->deleteRoleUseCase
+            $this->deleteRoleUseCase,
+            $this->assignUserRoleUseCase,
+            $this->unassignUserRoleUseCase
         );
     }
 
@@ -184,6 +193,49 @@ final class RoleControllerTest extends TestCase
             ->with('uuid-123');
 
         $response = $this->controller->delete('uuid-123');
+
+        $this->assertSame(Response::HTTP_NO_CONTENT, $response->getStatusCode());
+    }
+
+    public function testAssignRoleReturns200WithResultJson(): void
+    {
+        $expectedResult = [
+            'message' => 'Papel atribuído com sucesso',
+            'userId' => 'user-123',
+            'roleId' => 'role-456',
+            'roleName' => 'admin',
+        ];
+
+        $this->assignUserRoleUseCase
+            ->expects($this->once())
+            ->method('execute')
+            ->with('user-123', $this->callback(function (AssignRoleDTO $dto) {
+                return $dto->roleId === 'role-456' && $dto->name === 'admin';
+            }))
+            ->willReturn($expectedResult);
+
+        $request = new Request(
+            content: json_encode(['roleId' => 'role-456', 'name' => 'admin'], JSON_THROW_ON_ERROR)
+        );
+
+        $response = $this->controller->assignRole('user-123', $request);
+
+        $this->assertSame(Response::HTTP_OK, $response->getStatusCode());
+        $data = json_decode((string) $response->getContent(), true);
+        $this->assertSame('Papel atribuído com sucesso', $data['message']);
+        $this->assertSame('user-123', $data['userId']);
+        $this->assertSame('role-456', $data['roleId']);
+        $this->assertSame('admin', $data['roleName']);
+    }
+
+    public function testUnassignRoleReturns204WithEmptyBody(): void
+    {
+        $this->unassignUserRoleUseCase
+            ->expects($this->once())
+            ->method('execute')
+            ->with('user-123', 'role-456');
+
+        $response = $this->controller->unassignRole('user-123', 'role-456');
 
         $this->assertSame(Response::HTTP_NO_CONTENT, $response->getStatusCode());
     }

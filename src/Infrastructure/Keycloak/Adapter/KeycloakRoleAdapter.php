@@ -9,6 +9,7 @@ use App\Application\DTO\Role\RoleDTO;
 use App\Application\DTO\Role\UpdateRoleDTO;
 use App\Domain\Exception\RoleAlreadyExistsException;
 use App\Domain\Exception\RoleNotFoundException;
+use App\Domain\Exception\UserNotFoundException;
 use App\Domain\Port\Outbound\KeycloakRolePortInterface;
 use App\Infrastructure\Keycloak\Client\KeycloakHttpClient;
 use RuntimeException;
@@ -171,6 +172,74 @@ final class KeycloakRoleAdapter implements KeycloakRolePortInterface
 
         if ($response['status'] !== 200 && $response['status'] !== 204) {
             throw new RuntimeException("Falha ao inativar role no Keycloak. Status: {$response['status']}.");
+        }
+    }
+
+    public function assignRoleToUser(string $userId, string $roleIdentifier): array
+    {
+        $this->ensureUserExists($userId);
+        $roleData = $this->resolveRole($roleIdentifier);
+
+        $path = sprintf('admin/realms/%s/users/%s/role-mappings/realm', $this->httpClient->getRealm(), rawurlencode($userId));
+        $payload = json_encode([[
+            'id' => (string) ($roleData['id'] ?? ''),
+            'name' => (string) ($roleData['name'] ?? ''),
+        ]], JSON_THROW_ON_ERROR);
+
+        $response = $this->httpClient->requestAdmin('POST', $path, [], $payload, false);
+
+        if ($response['status'] !== 200 && $response['status'] !== 204) {
+            throw new RuntimeException("Falha ao atribuir role ao usuário no Keycloak. Status: {$response['status']}.");
+        }
+
+        return [
+            'success' => true,
+            'userId' => $userId,
+            'roleId' => (string) ($roleData['id'] ?? ''),
+            'roleName' => (string) ($roleData['name'] ?? ''),
+        ];
+    }
+
+    public function removeRoleFromUser(string $userId, string $roleIdentifier): void
+    {
+        $this->ensureUserExists($userId);
+        $roleData = $this->resolveRole($roleIdentifier);
+
+        $path = sprintf('admin/realms/%s/users/%s/role-mappings/realm', $this->httpClient->getRealm(), rawurlencode($userId));
+        $payload = json_encode([[
+            'id' => (string) ($roleData['id'] ?? ''),
+            'name' => (string) ($roleData['name'] ?? ''),
+        ]], JSON_THROW_ON_ERROR);
+
+        $response = $this->httpClient->requestAdmin('DELETE', $path, [], $payload, false);
+
+        if ($response['status'] !== 200 && $response['status'] !== 204) {
+            throw new RuntimeException("Falha ao revogar role do usuário no Keycloak. Status: {$response['status']}.");
+        }
+    }
+
+    private function resolveRole(string $roleIdentifier): array
+    {
+        $roleData = $this->fetchRoleRaw($roleIdentifier);
+
+        if ($roleData === null) {
+            $roleData = $this->lookupRoleByName($roleIdentifier);
+        }
+
+        if ($roleData === null || !$this->isRoleActive($roleData)) {
+            throw new RoleNotFoundException("Role '{$roleIdentifier}' não encontrado.");
+        }
+
+        return $roleData;
+    }
+
+    private function ensureUserExists(string $userId): void
+    {
+        $path = sprintf('admin/realms/%s/users/%s', $this->httpClient->getRealm(), rawurlencode($userId));
+        $response = $this->httpClient->requestAdmin('GET', $path, [], null, false);
+
+        if ($response['status'] === 404 || empty($response['data']) || !is_array($response['data'])) {
+            throw new UserNotFoundException("Usuário '{$userId}' não encontrado.");
         }
     }
 

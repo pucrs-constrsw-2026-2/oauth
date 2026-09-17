@@ -133,7 +133,7 @@ class KeycloakHttpClient
     {
         $token = $this->getAdminToken();
         $headers['Authorization'] = "Bearer {$token}";
-        if (!isset($headers['Content-Type']) && in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'], true)) {
+        if (!isset($headers['Content-Type']) && ($body !== null || in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'], true))) {
             $headers['Content-Type'] = 'application/json';
         }
 

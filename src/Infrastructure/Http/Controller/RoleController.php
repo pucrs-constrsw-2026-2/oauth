@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Http\Controller;
 
+use App\Application\DTO\Role\AssignRoleDTO;
 use App\Application\DTO\Role\CreateRoleDTO;
 use App\Application\DTO\Role\RoleDTO;
 use App\Application\DTO\Role\UpdateRoleDTO;
+use App\Domain\Port\Inbound\AssignUserRoleUseCaseInterface;
 use App\Domain\Port\Inbound\CreateRoleUseCaseInterface;
 use App\Domain\Port\Inbound\DeleteRoleUseCaseInterface;
 use App\Domain\Port\Inbound\GetRoleByIdUseCaseInterface;
 use App\Domain\Port\Inbound\ListRolesUseCaseInterface;
+use App\Domain\Port\Inbound\UnassignUserRoleUseCaseInterface;
 use App\Domain\Port\Inbound\UpdateRoleUseCaseInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,7 +27,9 @@ final class RoleController extends AbstractController
         private readonly ListRolesUseCaseInterface $listRolesUseCase,
         private readonly GetRoleByIdUseCaseInterface $getRoleByIdUseCase,
         private readonly UpdateRoleUseCaseInterface $updateRoleUseCase,
-        private readonly DeleteRoleUseCaseInterface $deleteRoleUseCase
+        private readonly DeleteRoleUseCaseInterface $deleteRoleUseCase,
+        private readonly AssignUserRoleUseCaseInterface $assignUserRoleUseCase,
+        private readonly UnassignUserRoleUseCaseInterface $unassignUserRoleUseCase
     ) {
     }
 
@@ -79,6 +84,24 @@ final class RoleController extends AbstractController
     public function delete(string $id): JsonResponse
     {
         $this->deleteRoleUseCase->execute($id);
+
+        return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);
+    }
+
+    #[Route('/users/{userId}/roles', name: 'user_role_assign', methods: ['POST'])]
+    public function assignRole(string $userId, Request $request): JsonResponse
+    {
+        $data = $this->extractRequestData($request);
+        $dto = AssignRoleDTO::fromArray($data);
+        $result = $this->assignUserRoleUseCase->execute($userId, $dto);
+
+        return new JsonResponse($result, JsonResponse::HTTP_OK);
+    }
+
+    #[Route('/users/{userId}/roles/{roleId}', name: 'user_role_unassign', methods: ['DELETE'])]
+    public function unassignRole(string $userId, string $roleId): JsonResponse
+    {
+        $this->unassignUserRoleUseCase->execute($userId, $roleId);
 
         return new JsonResponse(null, JsonResponse::HTTP_NO_CONTENT);
     }
