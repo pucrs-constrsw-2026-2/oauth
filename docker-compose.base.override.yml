@@ -8,3 +8,25 @@ services:
           "CMD-SHELL",
           "test \"$$(curl -fsS -o /dev/null -w '%{http_code}' \"$${OAUTH_INTERNAL_PROTOCOL}://127.0.0.1:$${OAUTH_INTERNAL_API_PORT}/health\")\" = \"200\"",
         ]
+
+  # Serviço Prometheus para Telemetria e Coleta de Métricas
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.54.0
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./backend/oauth/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - constrsw
+    restart: always
+
+volumes:
+  prometheus-data:

@@ -19,6 +19,6 @@ RUN apt-get update \
 
 COPY --from=build /app/target/*.jar app.jar
 
-EXPOSE 8081
+EXPOSE 3001 8081 9464
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
