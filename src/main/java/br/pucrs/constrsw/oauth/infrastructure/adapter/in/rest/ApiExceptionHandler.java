@@ -22,6 +22,8 @@ import br.pucrs.constrsw.oauth.domain.exception.IdentityProviderUnavailableExcep
 import br.pucrs.constrsw.oauth.domain.exception.InvalidCredentialsException;
 import br.pucrs.constrsw.oauth.domain.exception.InvalidEmailException;
 import br.pucrs.constrsw.oauth.domain.exception.InvalidInputException;
+import br.pucrs.constrsw.oauth.domain.exception.RoleAlreadyExistsException;
+import br.pucrs.constrsw.oauth.domain.exception.RoleNotFoundException;
 import br.pucrs.constrsw.oauth.domain.exception.UserAlreadyExistsException;
 import br.pucrs.constrsw.oauth.domain.exception.UserNotFoundException;
 import br.pucrs.constrsw.oauth.infrastructure.adapter.in.rest.dto.ErrorResponseDto;
@@ -76,6 +78,16 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ErrorResponseDto> handleConflict(UserAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex);
+    }
+
+    @ExceptionHandler(RoleNotFoundException.class)
+    public ResponseEntity<ErrorResponseDto> handleRoleNotFound(RoleNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex);
+    }
+
+    @ExceptionHandler(RoleAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponseDto> handleRoleConflict(RoleAlreadyExistsException ex) {
         return build(HttpStatus.CONFLICT, ex);
     }
 

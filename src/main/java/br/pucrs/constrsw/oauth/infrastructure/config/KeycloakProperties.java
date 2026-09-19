@@ -91,4 +91,22 @@ public class KeycloakProperties {
     public String adminApiBaseUrl() {
         return baseUrl + "/admin/realms/" + realm;
     }
+
+    public String rolesEndpoint() {
+        return baseUrl + "/admin/realms/" + realm + "/roles";
+    }
+
+    /** Busca/edicao por nome (usado internamente logo apos o POST, que nao devolve Location). */
+    public String roleByNameEndpoint(String name) {
+        return rolesEndpoint() + "/" + name;
+    }
+
+    /** Busca/edicao/remocao por id - usado pelas rotas publicas /roles/{id}. */
+    public String roleByIdEndpoint(String id) {
+        return baseUrl + "/admin/realms/" + realm + "/roles-by-id/" + id;
+    }
+
+    public String userRealmRoleMappingsEndpoint(String userId) {
+        return userEndpoint(userId) + "/role-mappings/realm";
+    }
 }
