@@ -15,4 +15,4 @@ scrape_configs:
   - job_name: 'keycloak'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['keycloak:9001']
+      - targets: ['keycloak:9000']

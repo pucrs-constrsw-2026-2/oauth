@@ -119,7 +119,7 @@ src/main/java/com/seugrupo/oauth/
 ### Princípios de Engenharia Adotados:
 * **Imutabilidade Total nos Contratos:** Todos os DTOs utilizam Java `record`, eliminando mutabilidade acidental, estados inconsistentes e código boilerplate.
 * **Resiliência e Prevenção de Cascading Failures:** Chamadas via `WebClient` ao Keycloak possuem timeout rígido de 10 segundos. Se o Keycloak estiver indisponível ou sofrer lentidão, o cliente não esgota o pool de threads e converte a falha imediatamente em `502 Bad Gateway` (`OA-502`).
-* **Injeção de Dependências Tipada:** Nenhuma string de URL ou credencial fica hardcoded; todas são carregadas tipadamente via `@ConfigurationProperties` em [`KeycloakProperties.java`](file:///Users/lns7_/Desktop/constru-sw-2026-2/backend/oauth/src/main/java/com/seugrupo/oauth/config/KeycloakProperties.java).
+* **Injeção de Dependências Tipada:** Nenhuma string de URL ou credencial fica hardcoded; todas são carregadas tipadamente via `@ConfigurationProperties` em [`KeycloakProperties.java`](./src/main/java/com/seugrupo/oauth/config/KeycloakProperties.java).
 
 ---
 
@@ -162,7 +162,7 @@ A arquitetura de segurança do microsserviço foi concebida para atender tanto a
 * **Vantagem de Performance e Resiliência:** Toda requisição subsequente com cabeçalho `Authorization: Bearer <token>` tem sua assinatura criptográfica, emissor (`iss`), audiência (`aud`) e expiração (`exp`) validadas **localmente no próprio processo Java em microssegundos**, sem incorrer em sobrecarga de chamadas de rede adicionais ao Keycloak.
 
 ### 4.3 Filtros de Segurança e Padronização de Erros 401/403
-A maioria das APIs Spring Security retorna respostas vazias ou HTML genérico em falhas de autenticação de baixo nível. Para cumprir 100% dos requisitos da disciplina, implementamos manipuladores customizados diretamente na cadeia de filtros do Spring Security ([`SecurityConfig.java`](file:///Users/lns7_/Desktop/constru-sw-2026-2/backend/oauth/src/main/java/com/seugrupo/oauth/config/SecurityConfig.java)):
+A maioria das APIs Spring Security retorna respostas vazias ou HTML genérico em falhas de autenticação de baixo nível. Para cumprir 100% dos requisitos da disciplina, implementamos manipuladores customizados diretamente na cadeia de filtros do Spring Security ([`SecurityConfig.java`](./src/main/java/com/seugrupo/oauth/config/SecurityConfig.java)):
 
 1. **`CustomAuthenticationEntryPoint` (HTTP 401):**
    * Intercepta requisições desprovidas do cabeçalho `Authorization`, tokens malformados, assinaturas inválidas ou tokens expirados.
@@ -221,7 +221,7 @@ O scraper do Prometheus consulta `http://oauth:9464/actuator/prometheus` a cada 
   ```
 * **Latência em Percentil 95 (p95) por Endpoint:**
   ```promql
-  http_server_requests_seconds{quantile="0.95"}
+  histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le))
   ```
 * **Uso de Memória Heap da JVM (em Megabytes):**
   ```promql
@@ -338,8 +338,8 @@ docker volume create constrsw-keycloak-data
 Execute os comandos a partir da raiz do projeto (`constru-sw-2026-2`):
 
 ```bash
-# 1. Navegar até a raiz do repositório base
-cd /Users/lns7_/Desktop/constru-sw-2026-2
+# 1. Navegar até a raiz do repositório base (substitua pelo seu caminho local)
+cd <caminho-para>/constru-sw-2026-2
 
 # 2. Subir todos os serviços (Keycloak, OAuth e Prometheus)
 docker compose \
@@ -369,7 +369,7 @@ O projeto conta com **três níveis complementares de testes automatizados**, co
 ### 10.1 Testes Unitários e de Integração (Maven / JUnit 5 / Mockito)
 Executados diretamente no diretório do microsserviço:
 ```bash
-cd /Users/lns7_/Desktop/constru-sw-2026-2/backend/oauth
+cd <caminho-para>/constru-sw-2026-2/backend/oauth
 mvn clean test
 ```
 * **Resultado Comprovado:** **83 testes executados com 100% de sucesso (0 falhas, 0 erros)** cobrindo:
@@ -381,7 +381,7 @@ mvn clean test
 ### 10.2 Testes E2E Automatizados com Bruno CLI
 A pasta [`bruno/`](./bruno/) contém **19 requisições organizadas e encadeadas**, validando todo o fluxo da API de forma automatizada:
 ```bash
-cd /Users/lns7_/Desktop/constru-sw-2026-2/backend/oauth/bruno
+cd <caminho-para>/constru-sw-2026-2/backend/oauth/bruno
 npx --yes @usebruno/cli run --env Local
 ```
 * **Resultado:** **19/19 testes aprovados (`✓ PASS`)**, validando:

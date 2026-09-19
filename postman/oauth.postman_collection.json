@@ -78,8 +78,8 @@
                   "    var json = pm.response.json();",
                   "    pm.expect(json).to.have.property(\"access_token\");",
                   "    pm.expect(json).to.have.property(\"refresh_token\");",
-                  "    pm.collectionVariables.set(\"accessToken\", json.access_token);",
-                  "    pm.collectionVariables.set(\"refreshToken\", json.refresh_token);",
+                  "    pm.environment.set(\"accessToken\", json.access_token);",
+                  "    pm.environment.set(\"refreshToken\", json.refresh_token);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -158,9 +158,9 @@
                   "pm.test(\"Atualiza tokens\", function () {",
                   "    var json = pm.response.json();",
                   "    pm.expect(json).to.have.property(\"access_token\");",
-                  "    pm.collectionVariables.set(\"accessToken\", json.access_token);",
+                  "    pm.environment.set(\"accessToken\", json.access_token);",
                   "    if (json.refresh_token) {",
-                  "        pm.collectionVariables.set(\"refreshToken\", json.refresh_token);",
+                  "        pm.environment.set(\"refreshToken\", json.refresh_token);",
                   "    }",
                   "});"
                 ],
