@@ -60,7 +60,7 @@ class UserControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"ana@example.com","password":"segredo",
+                                {"username":"ana@example.com","password":"segredo123",
                                  "first-name":"Ana","last-name":"Silva"}
                                 """))
                 .andExpect(status().isCreated())
@@ -167,7 +167,7 @@ class UserControllerTest {
         mockMvc.perform(patch("/users/u-1")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"nova\"}"))
+                        .content("{\"password\":\"novaSenha123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(""));
 

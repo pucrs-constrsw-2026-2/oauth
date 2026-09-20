@@ -36,5 +36,5 @@ validada:
 npx --yes @usebruno/cli@4.1.0 run --env Local --bail
 ```
 
-O ambiente Local usa exclusivamente o usuario de desenvolvimento publicado no
-realm do projeto: `student@pucrs.br` / `a12345678`.
+O ambiente Local usa exclusivamente o usuario provisionado no `realm-export.json`
+do projeto: `testuser@grupo08.constrsw.local` / `test123`.

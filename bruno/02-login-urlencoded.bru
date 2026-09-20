@@ -15,11 +15,6 @@ body:form-urlencoded {
   password: {{password}}
 }
 
-vars:pre-request {
-  username: student@pucrs.br
-  password: a12345678
-  baseUrl: http://localhost:8081
-}
 
 script:post-response {
   if (res.getStatus() === 201) {

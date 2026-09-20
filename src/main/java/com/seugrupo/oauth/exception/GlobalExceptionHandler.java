@@ -4,6 +4,7 @@ import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -105,6 +106,18 @@ public class GlobalExceptionHandler {
                 List.of(new ErrorStackEntry(ex.toString()))
         );
         return ResponseEntity.badRequest().body(body);
+    }
+
+    /**
+     * AccessDeniedException precisa escapar deste @RestControllerAdvice e chegar
+     * ao ExceptionTranslationFilter do Spring Security, que delega para o
+     * accessDeniedHandler padronizado (contrato OA-403) configurado em
+     * SecurityConfig. Sem este handler explícito, o handleGeneric(Exception)
+     * abaixo a capturaria antes e devolveria um OA-500 incorreto.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public void rethrowAccessDenied(AccessDeniedException ex) throws AccessDeniedException {
+        throw ex;
     }
 
     @ExceptionHandler(Exception.class)

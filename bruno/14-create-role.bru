@@ -33,7 +33,7 @@ tests {
     const body = res.getBody();
 
     expect(res.getStatus()).to.equal(201);
-    expect(body.name).to.equal(bru.getVar("role_name"));
+    expect(body.name).to.equal(bru.getEnvVar("role_name") || bru.getVar("role_name") || "pessoa4-test-role");
     expect(body).to.have.property("id").that.is.a("string").and.not.empty;
     expect(bru.getVar("role_id")).to.equal(body.id);
   });

@@ -25,13 +25,26 @@ springdoc:
     path: /v3/api-docs
 
 management:
+  server:
+    port: ${OAUTH_INTERNAL_METRICS_PORT:9464}
   endpoints:
     web:
-      base-path: /
+      base-path: /actuator
       exposure:
-        include: health
-      path-mapping:
-        health: health
+        include: health, info, metrics, prometheus
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name:oauth}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    sampling:
+      probability: 1.0

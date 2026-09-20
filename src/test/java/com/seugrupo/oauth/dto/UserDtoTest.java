@@ -61,9 +61,19 @@ class UserDtoTest {
     @Test
     void createAceitaLocalPartEntreAspas() {
         CreateUserRequest request = new CreateUserRequest(
-                "\"quoted local\"@example.com", "segredo", "Ana", "Silva");
+                "\"quoted local\"@example.com", "segredo123", "Ana", "Silva");
 
         assertThat(validator.validate(request)).isEmpty();
+    }
+
+    @Test
+    void createRejeitaSenhaComMenosDeOitoCaracteres() {
+        CreateUserRequest request = new CreateUserRequest(
+                "ana@example.com", "curta12", "Ana", "Silva");
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .containsExactly("password");
     }
 
     @Test
@@ -88,5 +98,12 @@ class UserDtoTest {
         assertThat(validator.validate(new UpdatePasswordRequest("   ")))
                 .extracting(violation -> violation.getPropertyPath().toString())
                 .contains("password");
+    }
+
+    @Test
+    void updatePasswordRejeitaSenhaComMenosDeOitoCaracteres() {
+        assertThat(validator.validate(new UpdatePasswordRequest("curta12")))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .containsExactly("password");
     }
 }
