@@ -8,6 +8,9 @@ const environmentSchema = z.object({
   KEYCLOAK_CLIENT_ID: z.string().min(1),
   KEYCLOAK_CLIENT_SECRET: z.string().min(1),
   KEYCLOAK_TIMEOUT_MS: z.coerce.number().int().positive(),
+  // Client de service account usado pelo Admin API (trilhas B, C e D).
+  KEYCLOAK_ADMIN_CLIENT_ID: z.string().min(1),
+  KEYCLOAK_ADMIN_CLIENT_SECRET: z.string().min(1),
   SESSION_COOKIE_NAME: z.string().min(1),
   COOKIE_SECURE: z.enum(["true", "false"]),
   COOKIE_SAME_SITE: z.enum(["lax", "strict", "none"]),
