@@ -1,8 +1,9 @@
 package br.pucrs.constrsw.oauth.error;
 
-import br.pucrs.constrsw.oauth.dto.ApiErrorResponse;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
@@ -11,9 +12,10 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import br.pucrs.constrsw.oauth.dto.ApiErrorResponse;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -80,13 +82,13 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .map(fieldError -> fieldError.getField() + " " + fieldError.getDefaultMessage())
                 .orElse("Invalid request");
-        return error(HttpStatus.BAD_REQUEST, description);
+        return error(HttpStatus.BAD_REQUEST, description, Collections.emptyList());
     }
 
     @ExceptionHandler(UserManagementNotImplementedException.class)
     ResponseEntity<ApiErrorResponse> handleUserManagementNotImplemented(
             UserManagementNotImplementedException exception) {
-        return error(HttpStatus.NOT_IMPLEMENTED, exception.getMessage());
+        return error(HttpStatus.NOT_IMPLEMENTED, exception.getMessage(), Collections.emptyList());
     }
 
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status, String description, List<Map<String, Object>> stack) {
