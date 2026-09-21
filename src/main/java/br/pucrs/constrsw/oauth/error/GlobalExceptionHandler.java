@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -71,6 +72,21 @@ public class GlobalExceptionHandler {
         } catch (Exception ignored) {
         }
         return List.of(Map.of("body", body));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity<ApiErrorResponse> handleValidationFailure(MethodArgumentNotValidException exception) {
+        String description = exception.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(fieldError -> fieldError.getField() + " " + fieldError.getDefaultMessage())
+                .orElse("Invalid request");
+        return error(HttpStatus.BAD_REQUEST, description);
+    }
+
+    @ExceptionHandler(UserManagementNotImplementedException.class)
+    ResponseEntity<ApiErrorResponse> handleUserManagementNotImplemented(
+            UserManagementNotImplementedException exception) {
+        return error(HttpStatus.NOT_IMPLEMENTED, exception.getMessage());
     }
 
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status, String description, List<Map<String, Object>> stack) {
