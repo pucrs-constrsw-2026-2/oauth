@@ -7,7 +7,7 @@ import br.pucrs.constrsw.oauth.application.port.out.UserGateway;
 import br.pucrs.constrsw.oauth.domain.exception.InvalidEmailException;
 import br.pucrs.constrsw.oauth.domain.model.NewUser;
 import br.pucrs.constrsw.oauth.domain.model.User;
-import br.pucrs.constrsw.oauth.infrastructure.util.EmailValidator;
+import br.pucrs.constrsw.oauth.domain.util.EmailValidator;
 
 @Service
 public class CreateUserService implements CreateUserUseCase {

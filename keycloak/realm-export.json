@@ -21,7 +21,7 @@
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "oauth-client-secret-dev-2026",
+      "secret": "wsNXUxaupU9X6jCncsn3rOEy6PDt7oJO",
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
@@ -51,6 +51,21 @@
         { "type": "password", "value": "Constrsw@123", "temporary": false }
       ],
       "realmRoles": ["student"]
+    },
+    {
+      "username": "admin.teste@constrsw.com",
+      "email": "admin.teste@constrsw.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Teste",
+      "credentials": [
+        { "type": "password", "value": "Constrsw@123", "temporary": false }
+      ],
+      "realmRoles": ["coordenador"],
+      "clientRoles": {
+        "realm-management": ["realm-admin"]
+      }
     }
   ]
 }

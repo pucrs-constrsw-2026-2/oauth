@@ -1,4 +1,4 @@
-package br.pucrs.constrsw.oauth.infrastructure.util;
+package br.pucrs.constrsw.oauth.domain.util;
 
 import java.util.regex.Pattern;
 
