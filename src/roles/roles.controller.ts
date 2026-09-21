@@ -17,7 +17,7 @@ import { RoleResponse } from "./interfaces/role-response.interface";
 import { RolesService } from "./roles.service";
 
 @ApiTags("roles")
-@Controller("v1/roles")
+@Controller("roles")
 export class RolesController {
   constructor(private readonly roles: RolesService) {}
 

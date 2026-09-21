@@ -62,13 +62,15 @@ describe("KeycloakAdminClient", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      new URL("http://keycloak:8080/realms/master/protocol/openid-connect/token"),
+      new URL(
+        "http://keycloak:8080/realms/master/protocol/openid-connect/token",
+      ),
       expect.objectContaining({ method: "POST" }),
     );
     const [tokenUrl, tokenOptions] = fetchMock.mock.calls[0];
-    expect(String((tokenOptions?.body as URLSearchParams).toString())).toContain(
-      "client_id=admin-cli",
-    );
+    expect(
+      String((tokenOptions?.body as URLSearchParams).toString()),
+    ).toContain("client_id=admin-cli");
     expect(String(tokenUrl)).toContain("/realms/master/");
 
     const [rolesUrl, rolesOptions] = fetchMock.mock.calls[1];
@@ -115,6 +117,48 @@ describe("KeycloakAdminClient", () => {
     expect(options?.method).toBe("POST");
     expect(options?.body).toBe(
       JSON.stringify([{ id: "r1", name: "professor" }]),
+    );
+  });
+
+  it("deletes a realm role-mapping", async () => {
+    const fetchMock = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse(undefined, true, 204));
+
+    await createClient().removeRealmRole("user-1", {
+      id: "r1",
+      name: "professor",
+    });
+
+    expect(fetchMock.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify([{ id: "r1", name: "professor" }]),
+      }),
+    );
+  });
+
+  it("gets a role by name and updates it by id", async () => {
+    const fetchMock = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(jsonResponse({ id: "r1", name: "professor" }))
+      .mockResolvedValueOnce(jsonResponse(undefined, true, 204));
+    const client = createClient();
+
+    await expect(client.getRoleByName("professor")).resolves.toEqual({
+      id: "r1",
+      name: "professor",
+    });
+    await client.updateRoleById("r1", { name: "docente" });
+
+    expect(String(fetchMock.mock.calls[1][0])).toContain("/roles/professor");
+    expect(fetchMock.mock.calls[2][1]).toEqual(
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ name: "docente" }),
+      }),
     );
   });
 

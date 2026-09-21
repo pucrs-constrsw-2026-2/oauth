@@ -53,7 +53,9 @@ describe("AuthController", () => {
       controller.login({ username: "alice", password: "secret" }, response),
     ).resolves.toEqual({
       token_type: "Bearer",
+      access_token: "access-token",
       expires_in: 300,
+      refresh_token: "refresh-token",
       refresh_expires_in: 1800,
     });
     expect(response.cookie).toHaveBeenCalledWith(
@@ -75,7 +77,9 @@ describe("AuthController", () => {
 
     await expect(controller.refresh(request, response)).resolves.toEqual({
       token_type: "Bearer",
+      access_token: "access-token",
       expires_in: 300,
+      refresh_token: "refresh-token",
       refresh_expires_in: 1800,
     });
     expect(auth.refresh).toHaveBeenCalledWith("refresh-token");

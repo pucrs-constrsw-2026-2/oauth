@@ -9,11 +9,9 @@ describe("ProblemDetailsFilter", () => {
       type: jest.fn().mockReturnThis(),
       send: jest.fn(),
     };
-    const request = { url: "/v1/auth/login" };
     const host = {
       switchToHttp: () => ({
         getResponse: () => response,
-        getRequest: () => request,
       }),
     } as unknown as ArgumentsHost;
 
@@ -31,13 +29,15 @@ describe("ProblemDetailsFilter", () => {
     new ProblemDetailsFilter().catch(exception, host);
 
     expect(response.status).toHaveBeenCalledWith(status);
-    expect(response.type).toHaveBeenCalledWith("application/problem+json");
+    expect(response.type).toHaveBeenCalledWith("application/json");
     expect(response.send).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status,
-        code,
-        instance: "/v1/auth/login",
-      }),
+      expect.objectContaining({ error_code: code }),
     );
+    expect(Object.keys(response.send.mock.calls[0][0])).toEqual([
+      "error_code",
+      "error_description",
+      "error_source",
+      "error_stack",
+    ]);
   });
 });

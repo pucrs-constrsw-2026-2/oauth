@@ -70,6 +70,7 @@ function reasonForStatus(status: number): string {
     case 400:
       return "bad_request";
     case 401:
+      return "unauthorized";
     case 403:
       return "forbidden";
     case 404:
@@ -93,7 +94,7 @@ export async function keycloakJson<T = unknown>(
   const { method = "GET", token, body, timeoutMs } = options;
   try {
     return await withTimeout(timeoutMs, async (signal) => {
-      const headers: Record<string, string> = { accept: "application/json" };
+      const headers: Record<string, string> = {};
       if (token) headers["authorization"] = `Bearer ${token}`;
       let payload: string | undefined;
       if (body !== undefined) {
@@ -112,8 +113,11 @@ export async function keycloakJson<T = unknown>(
           response.status,
         );
       }
-      const text = await response.text();
-      return (text ? (JSON.parse(text) as T) : undefined) as T | undefined;
+      if (typeof response.text === "function") {
+        const text = await response.text();
+        return (text ? (JSON.parse(text) as T) : undefined) as T | undefined;
+      }
+      return (await response.json()) as T;
     });
   } catch (error) {
     if (error instanceof KeycloakDependencyError) throw error;

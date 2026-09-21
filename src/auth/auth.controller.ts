@@ -1,5 +1,13 @@
-import { Body, Controller, Post, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Post,
+  Req,
+  Res,
+  UseInterceptors,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AnyFilesInterceptor } from "@nestjs/platform-express";
 import { ApiTags } from "@nestjs/swagger";
 import type { Request, Response } from "express";
 import { AuthService } from "./auth.service";
@@ -10,7 +18,7 @@ import type {
 } from "./interfaces/auth-response.interface";
 
 @ApiTags("auth")
-@Controller("v1/auth")
+@Controller()
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
@@ -18,6 +26,7 @@ export class AuthController {
   ) {}
 
   @Post("login")
+  @UseInterceptors(AnyFilesInterceptor())
   async login(
     @Body() input: LoginDto,
     @Res({ passthrough: true }) response: Response,
@@ -52,10 +61,18 @@ export class AuthController {
 
   private toAuthResponse({
     token_type,
+    access_token,
     expires_in,
+    refresh_token,
     refresh_expires_in,
   }: AuthResponse): AuthResponse {
-    return { token_type, expires_in, refresh_expires_in };
+    return {
+      token_type,
+      access_token,
+      expires_in,
+      refresh_token,
+      refresh_expires_in,
+    };
   }
 
   private setSessionCookie(

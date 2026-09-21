@@ -1,6 +1,18 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
-import type { Request, Response } from 'express';
-import { KeycloakDependencyError } from './errors';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
+import type { Response } from "express";
+import { KeycloakDependencyError } from "./errors";
+
+interface ErrorStackEntry {
+  error_code: string;
+  error_description: string;
+  error_source: string;
+}
 
 // Upstream (Keycloak Admin API) statuses we surface to the client as-is.
 // Anything else from a dependency is reported as 503 (dependency failure).
@@ -18,41 +30,45 @@ const DETAIL_BY_STATUS: Record<number, string> = {
 export class ProblemDetailsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
-    const request = host.switchToHttp().getRequest<Request>();
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let code = 'OA-500';
-    let detail = 'Erro interno no serviço de identidade.';
+    let code = "OA-500";
+    let detail = "Erro interno no serviço de identidade.";
+    const errorStack: ErrorStackEntry[] = [];
 
     if (exception instanceof KeycloakDependencyError) {
-      if (exception.reason === 'invalid_credentials') {
-        status = 401;
-      } else if (
-        exception.upstreamStatus &&
-        SURFACED_UPSTREAM_STATUSES.has(exception.upstreamStatus)
-      ) {
-        status = exception.upstreamStatus;
-      } else {
-        status = 503;
-      }
+      status = exception.reason === "invalid_credentials"
+        ? 401
+        : exception.upstreamStatus && SURFACED_UPSTREAM_STATUSES.has(exception.upstreamStatus)
+          ? exception.upstreamStatus
+          : 503;
       code = `OA-${status}`;
-      detail =
-        status === 503
-          ? 'O provedor de identidade está indisponível.'
-          : (DETAIL_BY_STATUS[status] ?? 'A requisição não pôde ser processada.');
+      detail = status === 503
+        ? "O provedor de identidade está indisponível."
+        : (DETAIL_BY_STATUS[status] ?? "A requisição não pôde ser processada.");
+      errorStack.push({
+        error_code: String(status),
+        error_description: "Erro retornado pelo Keycloak.",
+        error_source: "Keycloak",
+      });
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       code = `OA-${status}`;
-      detail =
-        DETAIL_BY_STATUS[status] ?? 'A requisição não pôde ser processada.';
+      detail = status === 401
+        ? "O access token é obrigatório ou inválido."
+        : DETAIL_BY_STATUS[status] ?? "A requisição não pôde ser processada.";
     }
 
-    response.status(status).type('application/problem+json').send({
-      type: `https://docs.constrsw.local/problems/${code.toLowerCase()}`,
-      title: status >= 500 ? 'Falha de dependência' : 'Requisição inválida',
-      status,
-      code,
-      detail,
-      instance: request.url,
+    errorStack.push({
+      error_code: code,
+      error_description: detail,
+      error_source: "OAuthAPI",
+    });
+
+    response.status(status).type("application/json").send({
+      error_code: code,
+      error_description: detail,
+      error_source: "OAuthAPI",
+      error_stack: errorStack,
     });
   }
 }

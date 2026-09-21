@@ -35,12 +35,12 @@ o volume mantém a configuração.
 
 ## Decisões importantes
 
-- **O login pertence a este módulo.** A rota pública é `POST /v1/auth/login`;
+- **O login pertence a este módulo.** A rota pública é `POST /login`;
   não existe login no BFF. Isso elimina a duplicação de clientes Keycloak e deixa
   autenticação, sessão e configuração num único lugar.
 - **O browser nunca chama o Keycloak.** O serviço faz o Direct Access Grant
-  internamente e guarda `access_token`/`refresh_token` em cookie `httpOnly`, de
-  modo que tokens não ficam expostos ao JavaScript nem ao `localStorage`.
+  internamente, devolve os tokens no corpo de login conforme o contrato e também
+  mantém a sessão em cookie `httpOnly`.
 - **Operações administrativas usam um token de admin.** As rotas de roles falam
   com a Admin REST API do Keycloak. Para isso o serviço obtém um token via
   `grant_type=password` no cliente `admin-cli` do realm `master`, usando
@@ -50,9 +50,10 @@ o volume mantém a configuração.
   CRUD de roles é um proxy sobre a Admin API. Como realm roles não têm exclusão
   nativa, o `DELETE` é uma **exclusão lógica** (grava o atributo `deleted=true` no
   role); roles marcados somem das leituras.
-- **Erros são seguros.** A API responde `application/problem+json` com `type`,
-  `title`, `status`, `code` (`OA-<status>`) e `detail`. Nunca devolvemos senha,
-  token, segredo, payload do Keycloak ou stack trace.
+- **Erros são seguros.** A API responde JSON com apenas `error_code`,
+  `error_description`, `error_source` e `error_stack`. O status HTTP permanece
+  na resposta HTTP, e nunca devolvemos senha, token, segredo, payload do
+  Keycloak ou stack trace.
 
 ### Por que um serviço separado?
 
@@ -64,15 +65,15 @@ cada equipe implementar seu próprio `fetch` para o provedor.
 
 ## Rotas
 
-### Autenticação (`/v1/auth`)
+### Autenticação
 
 | Método | Rota      | Descrição                                        |
 | ------ | --------- | ------------------------------------------------ |
-| POST   | `/login`  | Autentica um usuário e grava a sessão em cookie. |
+| POST   | `/login`  | Autentica um usuário via `multipart/form-data` e devolve os tokens. |
 | POST   | `/refresh`| Renova a sessão a partir do cookie.              |
 | POST   | `/logout` | Limpa o cookie de sessão.                        |
 
-### Roles (`/v1/roles`)
+### Roles (`/roles`)
 
 | Método | Rota                      | Descrição                                    |
 | ------ | ------------------------- | -------------------------------------------- |
@@ -87,6 +88,13 @@ cada equipe implementar seu próprio `fetch` para o provedor.
 
 As rotas de roles exigem as credenciais administrativas (`KEYCLOAK_ADMIN*`); sem
 elas o serviço não consegue token de admin e responde `503`.
+
+### Usuários (`/users`)
+
+| Método | Rota | Descrição |
+| ------ | ---- | --------- |
+| GET | `/` | Lista usuários; aceita `?enabled=true|false`. |
+| GET | `/{id}` | Recupera um usuário. |
 
 ## Variáveis de ambiente
 
@@ -148,6 +156,18 @@ KEYCLOAK_ADMIN_PASSWORD=a12345678
 ```
 
 ## Rodar os testes
+Quando usar `-d`, os containers ficam em segundo plano e os logs não aparecem no
+terminal. Para acompanhar o startup e visualizar as URLs impressas pelo OAuth:
+
+```bash
+docker compose logs -f oauth
+```
+
+As URLs públicas são API `http://localhost:8181`, saúde
+`http://localhost:8181/health`, Swagger `http://localhost:8181/docs` e Keycloak
+`http://localhost:8081`.
+
+Endereços locais: API `http://localhost:8181`, saúde `GET /health`, Swagger `http://localhost:8181/docs` e Keycloak `http://localhost:8081`.
 
 ```bash
 npm run test        # unitários (Jest)
@@ -163,13 +183,13 @@ Com o stack no ar (as rotas de roles não exigem login):
 BASE=http://localhost:8181
 
 # Criar um role → 201 com { id, name, description }
-curl -i -X POST $BASE/v1/roles -H 'content-type: application/json' \
+curl -i -X POST $BASE/roles -H 'content-type: application/json' \
   -d '{"name":"professor","description":"Docente"}'
 
 # Listar / buscar / excluir logicamente
-curl -s  $BASE/v1/roles | jq
-curl -i -X DELETE $BASE/v1/roles/<ID>   # 204
-curl -i $BASE/v1/roles/<ID>             # 404 (some após a exclusão lógica)
+curl -s  $BASE/roles | jq
+curl -i -X DELETE $BASE/roles/<ID>   # 204
+curl -i $BASE/roles/<ID>             # 404 (some após a exclusão lógica)
 ```
 
 O realm `constrsw` já vem com usuários (`admin@pucrs.br`, `coordinator@pucrs.br`,
@@ -177,16 +197,18 @@ O realm `constrsw` já vem com usuários (`admin@pucrs.br`, `coordinator@pucrs.b
 (console em `http://localhost:8081`). Para testar o login, use um desses usuários:
 
 ```bash
-curl -i -X POST $BASE/v1/auth/login -H 'content-type: application/json' \
-  -d '{"username":"professor@pucrs.br","password":"<senha-no-keycloak>"}'
+curl -i -X POST $BASE/login -F 'username=professor@pucrs.br' \
+  -F 'password=<senha-no-keycloak>'
 ```
 
-O corpo de sucesso contém apenas metadados da sessão; os tokens ficam no cookie
+O corpo de sucesso contém `token_type`, `access_token`, `expires_in`,
+`refresh_token` e `refresh_expires_in`; a sessão também é armazenada no cookie
 `httpOnly`.
 
 ## Contratos
 
-- `contracts/identity-gateway.yaml`: fragmento OpenAPI (login + rotas de roles).
+- `contracts/identity-gateway.yaml`: fragmento OpenAPI das rotas de autenticação,
+  usuários e roles.
 - `infrastructure/dev.local/services/keycloak/constrsw.json` (na raiz do repo):
   realm importado pelo container do Keycloak.
 - `keycloak/realm-closed-cras.json`: realm legado de exemplo; **não** é o que sobe
