@@ -266,14 +266,24 @@ public class KeycloakService {
                 return Collections.emptyList();
             }
 
-            return body.stream().map(u -> new UserResponse(
-                    (String) u.get("id"),
-                    (String) u.get("username"),
-                    (String) u.get("email"),
-                    (String) u.get("firstName"),
-                    (String) u.get("lastName"),
-                    (Boolean) u.get("enabled")
-            )).collect(Collectors.toList());
+            return body.stream().map(u -> {
+                String userId = (String) u.get("id");
+                List<String> roles = getUserRealmRoles(adminToken, userId);
+                String primaryRole = extractPrimaryRole(roles);
+                String username = (String) u.get("username");
+                if (username == null) {
+                    username = (String) u.get("email");
+                }
+                return new UserResponse(
+                        userId,
+                        username,
+                        (String) u.get("firstName"),
+                        (String) u.get("lastName"),
+                        (Boolean) u.get("enabled"),
+                        primaryRole,
+                        roles != null && !roles.isEmpty() ? roles : null
+                );
+            }).collect(Collectors.toList());
         } catch (HttpClientErrorException e) {
             log.error("Erro ao buscar lista de usuários no Keycloak: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new KeycloakException("KEYCLOAK_GET_USERS_ERROR", "Erro ao buscar usuários no Keycloak", (HttpStatus) e.getStatusCode(), e);
@@ -307,13 +317,21 @@ public class KeycloakService {
                 throw new KeycloakException("USER_NOT_FOUND", "Usuário com id '" + userId + "' não foi encontrado", HttpStatus.NOT_FOUND);
             }
 
+            List<String> roles = getUserRealmRoles(adminToken, userId);
+            String primaryRole = extractPrimaryRole(roles);
+            String username = (String) u.get("username");
+            if (username == null) {
+                username = (String) u.get("email");
+            }
+
             return new UserResponse(
                     (String) u.get("id"),
-                    (String) u.get("username"),
-                    (String) u.get("email"),
+                    username,
                     (String) u.get("firstName"),
                     (String) u.get("lastName"),
-                    (Boolean) u.get("enabled")
+                    (Boolean) u.get("enabled"),
+                    primaryRole,
+                    roles != null && !roles.isEmpty() ? roles : null
             );
         } catch (HttpClientErrorException.NotFound e) {
             log.warn("Usuário id='{}' não encontrado no Keycloak", userId);
@@ -530,6 +548,64 @@ public class KeycloakService {
             log.error("Erro inesperado ao remover role id='{}' do usuário id='{}': {}", roleId, userId, e.getMessage(), e);
             throw new KeycloakException("KEYCLOAK_REMOVE_ROLE_FAILED", "Falha ao remover role: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, e);
         }
+    }
+
+    /**
+     * Consulta as roles do realm atribuídas ao usuário no Keycloak.
+     * GET /admin/realms/{realm}/users/{id}/role-mappings/realm
+     */
+    public List<String> getUserRealmRoles(String adminToken, String userId) {
+        if (userId == null || userId.isBlank()) {
+            return Collections.emptyList();
+        }
+        String mappingUrl = String.format("%s/admin/realms/%s/users/%s/role-mappings/realm", keycloakUrl, realm, userId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                    mappingUrl,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<List<Map<String, Object>>>() {}
+            );
+
+            List<Map<String, Object>> body = response.getBody();
+            if (body == null || body.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            return body.stream()
+                    .map(r -> (String) r.get("name"))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Não foi possível carregar roles para o usuário id='{}': {}", userId, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Extrai a role principal de negócio a partir da lista de roles do Keycloak.
+     */
+    public String extractPrimaryRole(List<String> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return null;
+        }
+        List<String> priorityRoles = List.of("administrator", "coordinator", "professor", "student");
+        for (String prio : priorityRoles) {
+            if (roles.contains(prio)) {
+                return prio;
+            }
+        }
+        for (String r : roles) {
+            if (!r.startsWith("default-roles") && !r.equals("offline_access") && !r.equals("uma_authorization")) {
+                return r;
+            }
+        }
+        return roles.get(0);
     }
 
     /**

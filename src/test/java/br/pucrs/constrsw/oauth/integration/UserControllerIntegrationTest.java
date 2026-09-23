@@ -35,27 +35,31 @@ class UserControllerIntegrationTest {
     private KeycloakService keycloakService;
 
     @Test
-    @DisplayName("Integração: GET /users deve retornar lista de usuários")
+    @DisplayName("Integração: GET /users deve retornar lista de usuários incluindo role")
     void testGetUsers() throws Exception {
-        UserResponse user = new UserResponse("u-1", "joao@pucrs.br", "Joao", "Silva", true);
+        UserResponse user = new UserResponse("u-1", "joao@pucrs.br", "Joao", "Silva", true, "professor", List.of("professor"));
         when(keycloakService.getUsers(true)).thenReturn(List.of(user));
 
         mockMvc.perform(get("/users?enabled=true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("u-1"))
-                .andExpect(jsonPath("$[0].username").value("joao@pucrs.br"));
+                .andExpect(jsonPath("$[0].username").value("joao@pucrs.br"))
+                .andExpect(jsonPath("$[0].role").value("professor"))
+                .andExpect(jsonPath("$[0].roles[0]").value("professor"));
     }
 
     @Test
-    @DisplayName("Integração: GET /users/{id} deve retornar usuário quando existir")
+    @DisplayName("Integração: GET /users/{id} deve retornar usuário quando existir incluindo role")
     void testGetUserById() throws Exception {
-        UserResponse user = new UserResponse("u-1", "joao@pucrs.br", "Joao", "Silva", true);
+        UserResponse user = new UserResponse("u-1", "joao@pucrs.br", "Joao", "Silva", true, "professor", List.of("professor"));
         when(keycloakService.getUserById("u-1")).thenReturn(user);
 
         mockMvc.perform(get("/users/u-1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("u-1"))
-                .andExpect(jsonPath("$.username").value("joao@pucrs.br"));
+                .andExpect(jsonPath("$.username").value("joao@pucrs.br"))
+                .andExpect(jsonPath("$.role").value("professor"))
+                .andExpect(jsonPath("$.roles[0]").value("professor"));
     }
 
     @Test

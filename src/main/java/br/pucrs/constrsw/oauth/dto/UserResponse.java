@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.List;
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record UserResponse(
         @JsonProperty("id")
@@ -22,10 +24,24 @@ public record UserResponse(
         String lastName,
 
         @JsonProperty("enabled")
-        Boolean enabled
+        Boolean enabled,
+
+        @JsonProperty("role")
+        String role,
+
+        @JsonProperty("roles")
+        List<String> roles
 ) {
     public UserResponse(String id, String username, String email, String firstName, String lastName, Boolean enabled) {
-        this(id, username != null ? username : email, firstName, lastName, enabled);
+        this(id, username != null ? username : email, firstName, lastName, enabled, null, null);
+    }
+
+    public UserResponse(String id, String username, String firstName, String lastName, Boolean enabled) {
+        this(id, username, firstName, lastName, enabled, null, null);
+    }
+
+    public UserResponse(String id, String username, String firstName, String lastName, Boolean enabled, String role) {
+        this(id, username, firstName, lastName, enabled, role, role != null ? List.of(role) : null);
     }
 
     @JsonIgnore

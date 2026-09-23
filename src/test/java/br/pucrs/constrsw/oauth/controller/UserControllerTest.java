@@ -40,10 +40,10 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("Deveria listar usuários com e sem filtro enabled")
+    @DisplayName("Deveria listar usuários com e sem filtro enabled incluindo roles")
     void testGetUsersSuccess() {
-        UserResponse u1 = new UserResponse("id-1", "user1@pucrs.br", "User", "One", true);
-        UserResponse u2 = new UserResponse("id-2", "user2@pucrs.br", "User", "Two", true);
+        UserResponse u1 = new UserResponse("id-1", "user1@pucrs.br", "User", "One", true, "professor", List.of("professor"));
+        UserResponse u2 = new UserResponse("id-2", "user2@pucrs.br", "User", "Two", true, "student", List.of("student"));
 
         when(keycloakService.getUsers(true)).thenReturn(List.of(u1, u2));
 
@@ -53,13 +53,15 @@ class UserControllerTest {
         assertNotNull(response.getBody());
         assertEquals(2, response.getBody().size());
         assertEquals("user1@pucrs.br", response.getBody().get(0).username());
+        assertEquals("professor", response.getBody().get(0).role());
+        assertEquals(List.of("professor"), response.getBody().get(0).roles());
         assertEquals(1.0, meterRegistry.counter("oauth.users.listed.total").count());
     }
 
     @Test
-    @DisplayName("Deveria buscar usuário por ID com sucesso")
+    @DisplayName("Deveria buscar usuário por ID com sucesso incluindo roles")
     void testGetUserByIdSuccess() {
-        UserResponse u1 = new UserResponse("id-1", "user1@pucrs.br", "User", "One", true);
+        UserResponse u1 = new UserResponse("id-1", "user1@pucrs.br", "User", "One", true, "professor", List.of("professor"));
         when(keycloakService.getUserById("id-1")).thenReturn(u1);
 
         ResponseEntity<UserResponse> response = userController.getUserById("id-1");
@@ -68,6 +70,8 @@ class UserControllerTest {
         assertNotNull(response.getBody());
         assertEquals("id-1", response.getBody().id());
         assertEquals("user1@pucrs.br", response.getBody().username());
+        assertEquals("professor", response.getBody().role());
+        assertEquals(List.of("professor"), response.getBody().roles());
         assertEquals(1.0, meterRegistry.counter("oauth.users.retrieved.total").count());
     }
 

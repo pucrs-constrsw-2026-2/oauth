@@ -66,4 +66,19 @@ class KeycloakServiceTest {
         assertEquals("courses", keycloakService.normalizeResource("COURSES"));
         assertEquals("rooms", keycloakService.normalizeResource("/ROOMS/"));
     }
+
+    @Test
+    void testExtractPrimaryRole() {
+        assertNull(keycloakService.extractPrimaryRole(null));
+        assertNull(keycloakService.extractPrimaryRole(List.of()));
+
+        // Prioridade de cargos de negócio
+        assertEquals("administrator", keycloakService.extractPrimaryRole(List.of("default-roles-constrsw", "administrator", "offline_access")));
+        assertEquals("professor", keycloakService.extractPrimaryRole(List.of("default-roles-constrsw", "professor", "uma_authorization")));
+        assertEquals("student", keycloakService.extractPrimaryRole(List.of("student", "default-roles-constrsw")));
+        assertEquals("coordinator", keycloakService.extractPrimaryRole(List.of("coordinator")));
+
+        // Cargo customizado (ignora default-roles e offline_access)
+        assertEquals("monitor", keycloakService.extractPrimaryRole(List.of("default-roles-constrsw", "offline_access", "monitor")));
+    }
 }
