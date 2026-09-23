@@ -129,6 +129,16 @@ Todo erro (de negócio, de validação do Nest/`ValidationPipe`, ou não tratado
 
 Regra de guarda importante: `Authorization` ausente ou mal formado → **400** (erro de estrutura da chamada, validado antes de qualquer chamada ao Keycloak); token presente mas inválido/expirado → **401** (rejeitado pelo próprio Keycloak).
 
+## 6.1 Observabilidade — métricas Prometheus
+
+`src/common/telemetry/tracing.ts` inicializa o OpenTelemetry Node SDK **antes** de qualquer outro módulo ser importado (é o primeiro `import` de `main.ts` — obrigatório, é assim que a instrumentação de `http`/`express` consegue interceptar os módulos antes deles serem exigidos pelo resto da aplicação).
+
+- **`HttpInstrumentation` + `ExpressInstrumentation`**: geram automaticamente o histograma `http_server_request_duration` (contagem + latência) para toda rota da API, sem precisar instrumentar cada controller na mão.
+- **`PrometheusExporter`**: expõe essas métricas em `GET /metrics` (formato OpenMetrics), na porta `OAUTH_INTERNAL_METRICS_PORT` (padrão `9464`) — **servidor HTTP separado** do `main.ts` (`OAUTH_INTERNAL_API_PORT`/3001), scrapeado diretamente pelo Prometheus central (`infrastructure/dev.local/services/prometheus/prometheus.yml`, job `auth` → target `oauth:9464`).
+- Resource attribute `service.name=oauth` identifica a origem das métricas no Prometheus/Grafana.
+
+Não há push de métricas/traces para o `otel-collector` (serviço central em `docker-compose.yml`) — o exporter Prometheus é *pull-based* e já cobre o requisito; o job `auth` do `prometheus.yml` foi corrigido nesta branch para apontar pro hostname real do serviço (`oauth`, não `auth` — nome genérico do template central).
+
 ## 7. Configuração / variáveis de ambiente
 
 Lidas via `ConfigModule` (`src/common/config/configuration.ts`):
