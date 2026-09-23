@@ -2,7 +2,7 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
-import { ProblemDetailsFilter } from "../src/common/problem-details.filter";
+import { ErrorResponseFilter } from "../src/common/error-response.filter";
 
 interface FakeRole {
   id: string;
@@ -16,7 +16,7 @@ const REALM_BASE = "/admin/realms/constrsw";
 /**
  * In-memory Keycloak Admin API stand-in wired into global.fetch. Keeps roles and
  * user role-mappings so the full HTTP stack (routing -> pipe -> controller ->
- * service -> admin client -> problem filter) can be exercised without Keycloak.
+ * service -> admin client -> error filter) can be exercised without Keycloak.
  */
 function createKeycloakFake() {
   const roles = new Map<string, FakeRole>();
@@ -28,6 +28,7 @@ function createKeycloakFake() {
     return {
       ok: status >= 200 && status < 300,
       status,
+      headers: new Headers(),
       json: async () => body ?? {},
       text: async () => text,
     } as unknown as Response;
@@ -145,7 +146,7 @@ describe("Roles (e2e)", () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.useGlobalFilters(new ProblemDetailsFilter());
+    app.useGlobalFilters(new ErrorResponseFilter());
     await app.init();
   });
 
@@ -207,19 +208,19 @@ describe("Roles (e2e)", () => {
     expect(keycloak.assignments.get("user-1")?.has(id)).toBe(false);
   });
 
-  it("maps upstream conflicts and missing roles to problem responses", async () => {
+  it("maps upstream conflicts and missing roles to the error envelope", async () => {
     await request(server()).post("/v1/roles").send({ name: "dup" }).expect(201);
 
     await request(server())
       .post("/v1/roles")
       .send({ name: "dup" })
       .expect(409)
-      .expect((res) => expect(res.body.code).toBe("OA-409"));
+      .expect((res) => expect(res.body.error_code).toBe("OA-409"));
 
     await request(server())
       .get("/v1/roles/inexistente")
       .expect(404)
-      .expect((res) => expect(res.body.code).toBe("OA-404"));
+      .expect((res) => expect(res.body.error_code).toBe("OA-404"));
   });
 
   it("rejects invalid payloads with 400", async () => {
@@ -227,6 +228,6 @@ describe("Roles (e2e)", () => {
       .post("/v1/roles")
       .send({ description: "sem nome" })
       .expect(400)
-      .expect((res) => expect(res.body.code).toBe("OA-400"));
+      .expect((res) => expect(res.body.error_code).toBe("OA-400"));
   });
 });

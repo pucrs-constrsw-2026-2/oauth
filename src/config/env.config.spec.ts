@@ -7,22 +7,20 @@ const validEnvironment = {
   KEYCLOAK_REALM: "constrsw",
   KEYCLOAK_CLIENT_ID: "oauth",
   KEYCLOAK_CLIENT_SECRET: "secret",
+  KEYCLOAK_ADMIN_CLIENT_ID: "oauth-admin",
+  KEYCLOAK_ADMIN_CLIENT_SECRET: "admin-secret",
   KEYCLOAK_TIMEOUT_MS: "5000",
-  KEYCLOAK_ADMIN: "admin",
-  KEYCLOAK_ADMIN_PASSWORD: "a12345678",
   SESSION_COOKIE_NAME: "session",
   COOKIE_SECURE: "false",
   COOKIE_SAME_SITE: "lax",
 };
 
 describe("validateEnvironment", () => {
-  it("parses valid values, coerces numbers and applies defaults", () => {
+  it("parses valid values and coerces numbers", () => {
     expect(validateEnvironment(validEnvironment)).toEqual({
       ...validEnvironment,
       PORT: 8088,
       KEYCLOAK_TIMEOUT_MS: 5000,
-      KEYCLOAK_ADMIN_REALM: "master",
-      KEYCLOAK_ADMIN_CLIENT_ID: "admin-cli",
     });
   });
 
