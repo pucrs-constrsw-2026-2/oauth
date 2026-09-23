@@ -16,6 +16,7 @@ repositório `base`.
 | Swagger UI | http://localhost:8181/swagger-ui/index.html |
 | OpenAPI JSON | http://localhost:8181/v3/api-docs |
 | Healthcheck | http://localhost:8181/actuator/health |
+| Prometheus metrics | http://localhost:8181/actuator/prometheus |
 | Base API | http://localhost:8181 |
 | Keycloak Admin Console | http://localhost:8081 |
 
@@ -26,8 +27,10 @@ Porta externa da API = `OAUTH_EXTERNAL_API_PORT` no `.env` da raiz (padrão `818
 ## Escopo entregue (Users + Auth)
 
 Todas as rotas de **USERS** e **LOGIN** exigidas pelo enunciado estão
-implementadas, testadas end-to-end contra o Keycloak 26 e documentadas no
-Swagger:
+implementadas e documentadas no Swagger. A suíte automatizada cobre o
+contrato HTTP dos controllers, os casos de uso e os gateways contra uma API
+Keycloak simulada; a validação end-to-end com o Keycloak real é feita pelo
+`docker compose`.
 
 | Rota | Método | Status codes |
 |---|---|---|
@@ -48,8 +51,9 @@ Validações:
 - `username = e-mail` no Keycloak
 - **Exclusão lógica** no `DELETE` (`enabled=false`, sem remover o usuário)
 
-Rotas de **Roles** e **atribuição de roles a users** — **não implementadas**
-nesta entrega.
+Rotas de **Roles** e **atribuição de roles a users** também estão disponíveis:
+`POST/GET/GET-id/PUT/PATCH/DELETE /roles`, `POST /roles/{roleId}/users/{userId}`
+e `DELETE /roles/{roleId}/users/{userId}`.
 
 ---
 
@@ -253,6 +257,33 @@ em `application/` ou `domain/` seria tocado.
 
 ---
 
+## Observabilidade OpenTelemetry
+
+O Spring Boot instrumenta automaticamente as requisições HTTP e o Spring
+Security com Micrometer Observation. O projeto usa o bridge
+`micrometer-tracing-bridge-otel` para gerar traces e o exporter OTLP para
+enviá-los a um collector OpenTelemetry.
+
+Métricas no formato Prometheus ficam disponíveis em:
+
+```text
+GET /actuator/prometheus
+```
+
+Por padrão, o endpoint OTLP de traces é `http://localhost:4318/v1/traces`.
+Em Docker ou em outro ambiente, configure:
+
+```text
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
+OTEL_TRACES_SAMPLER_ARG=1.0
+```
+
+O endpoint `/actuator/health` continua sendo usado pelo healthcheck do
+`docker-compose`; o endpoint Prometheus exige autenticação Bearer, como as
+demais rotas protegidas.
+
+---
+
 ## Execução
 
 ### Junto com o Keycloak (recomendado)
@@ -324,6 +355,19 @@ curl.exe -s -X POST http://localhost:8181/users `
     --data "@body.json"
 ```
 
+### Testes automatizados
+
+Na pasta `backend/oauth`:
+
+```bash
+mvn test
+```
+
+A suíte contém testes unitários dos casos de uso com gateways mockados,
+testes de integração `@SpringBootTest`/`MockMvc` dos controllers e testes de
+contrato dos gateways com `MockRestServiceServer`, incluindo segurança e o
+endpoint Prometheus. Os testes não dependem de um Keycloak rodando.
+
 ---
 
 ## Nota sobre versão do Keycloak
@@ -338,12 +382,6 @@ vez de `/auth/realms/...`. Não é desvio do enunciado, é ajuste de versão.
 
 ## Roadmap (fora do escopo desta entrega)
 
-- Rotas de **Roles** (`POST/GET/GET-id/PUT/PATCH/DELETE /roles`) — segue o
-  mesmo padrão Clean: criar `Role` no domain, `RoleGateway` no
-  `application/port/out/`, casos de uso em `application/usecase/`,
-  `KeycloakRoleGateway` como adapter out, `RoleRestController` como adapter in
-- Endpoints para **atribuir/remover role** de um usuário
-- Testes unitários (`application/usecase/*` são triviais de testar com mock
-  do gateway) e testes de integração (`@SpringBootTest` sobre os controllers)
+- Testcontainers com Keycloak real para uma suíte opcional de contrato da Admin API
 - Collection Postman consolidada
 - Tag de release no GitHub + zip para entrega no Moodle
