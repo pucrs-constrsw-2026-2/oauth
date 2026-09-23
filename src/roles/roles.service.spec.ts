@@ -88,7 +88,9 @@ describe("RolesService", () => {
 
   it("logically deletes by setting the deleted attribute", async () => {
     const { service, admin } = createService();
-    admin.get.mockResolvedValue(ok({ id: "r1", name: "professor" }));
+    admin.get
+      .mockResolvedValueOnce(ok({ id: "r1", name: "professor" }))
+      .mockResolvedValueOnce(ok([]));
 
     await service.remove("r1");
 
@@ -96,6 +98,85 @@ describe("RolesService", () => {
       "/roles-by-id/r1",
       expect.objectContaining({ attributes: { deleted: ["true"] } }),
     );
+  });
+
+  it("strips a deleted role from every holder, across pages", async () => {
+    const { service, admin } = createService();
+    const fullPage = Array.from({ length: 100 }, (_, i) => ({ id: `u${i}` }));
+    admin.get
+      .mockResolvedValueOnce(ok({ id: "r1", name: "professor" }))
+      .mockResolvedValueOnce(ok(fullPage))
+      .mockResolvedValueOnce(ok([{ id: "u100" }]));
+    admin.request.mockImplementation(async (_method, path: string) => {
+      if (path === "/users/u5/role-mappings/realm") {
+        throw new NotFoundError("gone", "keycloak-admin");
+      }
+      return ok(undefined, 204);
+    });
+
+    await service.remove("r1");
+
+    expect(admin.get).toHaveBeenCalledWith(
+      "/roles/professor/users?first=100&max=100",
+    );
+    expect(admin.request).toHaveBeenCalledTimes(101);
+    expect(admin.request).toHaveBeenLastCalledWith(
+      "DELETE",
+      "/users/u100/role-mappings/realm",
+      [{ id: "r1", name: "professor" }],
+    );
+  });
+
+  it("still unassigns a logically deleted role", async () => {
+    const { service, admin } = createService();
+    admin.get.mockResolvedValue(
+      ok({ id: "r1", name: "antigo", attributes: { deleted: ["true"] } }),
+    );
+
+    await service.removeFromUser("r1", "user-1");
+
+    expect(admin.request).toHaveBeenCalledWith(
+      "DELETE",
+      "/users/user-1/role-mappings/realm",
+      [{ id: "r1", name: "antigo" }],
+    );
+  });
+
+  it("says when a conflicting name belongs to a deleted role", async () => {
+    const { service, admin } = createService();
+    admin.post.mockRejectedValue(new ConflictError("dup user", "keycloak-admin"));
+    admin.get.mockResolvedValue(
+      ok({ id: "r1", name: "antigo", attributes: { deleted: ["true"] } }),
+    );
+
+    await expect(service.create({ name: "antigo" })).rejects.toThrow(
+      "Este nome pertence a um papel excluído; escolha outro nome.",
+    );
+  });
+
+  it("restates a rename conflict as a role conflict", async () => {
+    const { service, admin } = createService();
+    admin.get
+      .mockResolvedValueOnce(ok({ id: "r2", name: "b" }))
+      .mockResolvedValueOnce(ok({ id: "r1", name: "a" }));
+    admin.put.mockRejectedValue(new ConflictError("dup user", "keycloak-admin"));
+
+    await expect(service.patch("r2", { name: "a" })).rejects.toThrow(
+      "Já existe um papel com este nome.",
+    );
+  });
+
+  it("treats a client role as not found", async () => {
+    const { service, admin } = createService();
+    admin.get.mockResolvedValue(
+      ok({ id: "c1", name: "manage-users", clientRole: true }),
+    );
+
+    await expect(service.findOne("c1")).rejects.toBeInstanceOf(NotFoundError);
+    await expect(service.assignToUser("c1", "user-1")).rejects.toThrow(
+      "Papel não encontrado no realm.",
+    );
+    expect(admin.post).not.toHaveBeenCalled();
   });
 
   it("assigns a role to a user using id and name", async () => {

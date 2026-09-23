@@ -8,6 +8,7 @@ interface FakeRole {
   id: string;
   name: string;
   description?: string;
+  clientRole?: boolean;
   attributes?: Record<string, string[]>;
 }
 
@@ -77,6 +78,22 @@ function createKeycloakFake() {
       return response(200, list);
     }
 
+    const holders = path.match(
+      /^\/admin\/realms\/constrsw\/roles\/([^/]+)\/users$/,
+    );
+    if (holders && method === "GET") {
+      const role = [...roles.values()].find(
+        (r) => r.name === decodeURIComponent(holders[1]),
+      );
+      if (!role) return response(404);
+      const first = Number(url.searchParams.get("first") ?? 0);
+      const max = Number(url.searchParams.get("max") ?? 100);
+      const users = [...assignments.entries()]
+        .filter(([, set]) => set.has(role.id))
+        .map(([id]) => ({ id }));
+      return response(200, users.slice(first, first + max));
+    }
+
     const byName = path.match(/^\/admin\/realms\/constrsw\/roles\/(.+)$/);
     if (byName && method === "GET") {
       const role = [...roles.values()].find(
@@ -95,6 +112,10 @@ function createKeycloakFake() {
       if (method === "PUT") {
         const current = roles.get(id);
         if (!current) return response(404);
+        const taken = [...roles.values()].some(
+          (r) => r.id !== id && r.name === body.name,
+        );
+        if (taken) return response(409);
         roles.set(id, {
           ...current,
           name: body.name ?? current.name,
@@ -221,6 +242,80 @@ describe("Roles (e2e)", () => {
       .get("/v1/roles/inexistente")
       .expect(404)
       .expect((res) => expect(res.body.error_code).toBe("OA-404"));
+  });
+
+  it("strips a deleted role from its holders and still allows unassigning it", async () => {
+    const created = await request(server())
+      .post("/v1/roles")
+      .send({ name: "monitor" })
+      .expect(201);
+    const id = created.body.id as string;
+    await request(server()).post(`/v1/roles/${id}/users/user-1`).expect(204);
+    await request(server()).post(`/v1/roles/${id}/users/user-2`).expect(204);
+
+    await request(server()).delete(`/v1/roles/${id}`).expect(204);
+
+    expect(keycloak.assignments.get("user-1")?.has(id)).toBe(false);
+    expect(keycloak.assignments.get("user-2")?.has(id)).toBe(false);
+    expect(keycloak.roles.get(id)?.attributes).toEqual({ deleted: ["true"] });
+    await request(server()).delete(`/v1/roles/${id}/users/user-1`).expect(204);
+  });
+
+  it("explains a name conflict with a logically deleted role", async () => {
+    const created = await request(server())
+      .post("/v1/roles")
+      .send({ name: "antigo" })
+      .expect(201);
+    await request(server()).delete(`/v1/roles/${created.body.id}`).expect(204);
+
+    await request(server())
+      .post("/v1/roles")
+      .send({ name: "antigo" })
+      .expect(409)
+      .expect((res) =>
+        expect(res.body.error_description).toMatch(/papel excluído/),
+      );
+  });
+
+  it("words a rename conflict as a role conflict", async () => {
+    await request(server()).post("/v1/roles").send({ name: "a" }).expect(201);
+    const b = await request(server())
+      .post("/v1/roles")
+      .send({ name: "b" })
+      .expect(201);
+
+    for (const method of ["put", "patch"] as const) {
+      await request(server())
+        [method](`/v1/roles/${b.body.id}`)
+        .send({ name: "a" })
+        .expect(409)
+        .expect((res) =>
+          expect(res.body.error_description).toBe(
+            "Já existe um papel com este nome.",
+          ),
+        );
+    }
+  });
+
+  it("does not expose client roles through the by-id endpoints", async () => {
+    keycloak.roles.set("client-1", {
+      id: "client-1",
+      name: "manage-users",
+      clientRole: true,
+    });
+
+    await request(server()).get("/v1/roles/client-1").expect(404);
+    await request(server())
+      .patch("/v1/roles/client-1")
+      .send({ description: "x" })
+      .expect(404);
+    await request(server()).delete("/v1/roles/client-1").expect(404);
+    await request(server())
+      .post("/v1/roles/client-1/users/user-1")
+      .expect(404)
+      .expect((res) =>
+        expect(res.body.error_description).toBe("Papel não encontrado no realm."),
+      );
   });
 
   it("rejects invalid payloads with 400", async () => {
