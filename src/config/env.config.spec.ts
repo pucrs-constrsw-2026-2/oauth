@@ -16,7 +16,7 @@ const validEnvironment = {
 };
 
 describe("validateEnvironment", () => {
-  it("parses valid values and coerces numeric settings", () => {
+  it("parses valid values and coerces numbers", () => {
     expect(validateEnvironment(validEnvironment)).toEqual({
       ...validEnvironment,
       PORT: 8088,
