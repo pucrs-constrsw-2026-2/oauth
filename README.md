@@ -11,14 +11,14 @@ repositório `base`.
 
 ## URLs úteis (com o compose no ar)
 
-| Recurso | URL |
-|---|---|
-| Swagger UI | http://localhost:8181/swagger-ui/index.html |
-| OpenAPI JSON | http://localhost:8181/v3/api-docs |
-| Healthcheck | http://localhost:8181/actuator/health |
-| Prometheus metrics | http://localhost:8181/actuator/prometheus |
-| Base API | http://localhost:8181 |
-| Keycloak Admin Console | http://localhost:8081 |
+| Recurso                | URL                                         |
+| ---------------------- | ------------------------------------------- |
+| Swagger UI             | http://localhost:8181/swagger-ui/index.html |
+| OpenAPI JSON           | http://localhost:8181/v3/api-docs           |
+| Healthcheck            | http://localhost:8181/actuator/health       |
+| Prometheus metrics     | http://localhost:8181/actuator/prometheus   |
+| Base API               | http://localhost:8181                       |
+| Keycloak Admin Console | http://localhost:8081                       |
 
 Porta externa da API = `OAUTH_EXTERNAL_API_PORT` no `.env` da raiz (padrão `8181`).
 
@@ -32,15 +32,15 @@ contrato HTTP dos controllers, os casos de uso e os gateways contra uma API
 Keycloak simulada; a validação end-to-end com o Keycloak real é feita pelo
 `docker compose`.
 
-| Rota | Método | Status codes |
-|---|---|---|
-| `/login` | `POST` | 201 / 400 / 401 |
-| `/users` | `POST` | 201 / 400 / 401 / 403 / 409 |
-| `/users` | `GET` (com `?enabled=true\|false`) | 200 / 400 / 401 / 403 |
-| `/users/{id}` | `GET` | 200 / 400 / 401 / 403 / 404 |
-| `/users/{id}` | `PUT` | 200 / 400 / 401 / 403 / 404 |
-| `/users/{id}` | `PATCH` (senha) | 200 / 400 / 401 / 403 / 404 |
-| `/users/{id}` | `DELETE` (soft, `enabled=false`) | 204 / 400 / 401 / 403 / 404 |
+| Rota          | Método                             | Status codes                |
+| ------------- | ---------------------------------- | --------------------------- |
+| `/login`      | `POST`                             | 201 / 400 / 401             |
+| `/users`      | `POST`                             | 201 / 400 / 401 / 403 / 409 |
+| `/users`      | `GET` (com `?enabled=true\|false`) | 200 / 400 / 401 / 403       |
+| `/users/{id}` | `GET`                              | 200 / 400 / 401 / 403 / 404 |
+| `/users/{id}` | `PUT`                              | 200 / 400 / 401 / 403 / 404 |
+| `/users/{id}` | `PATCH` (senha)                    | 200 / 400 / 401 / 403 / 404 |
+| `/users/{id}` | `DELETE` (soft, `enabled=false`)   | 204 / 400 / 401 / 403 / 404 |
 
 Validações:
 
@@ -88,7 +88,10 @@ enunciado:
   "error_description": "Invalid e-mail (RFC 5322): nao-eh-email",
   "error_source": "OAuthAPI",
   "error_stack": [
-    { "type": "InvalidEmailException", "message": "Invalid e-mail (RFC 5322): nao-eh-email" }
+    {
+      "type": "InvalidEmailException",
+      "message": "Invalid e-mail (RFC 5322): nao-eh-email"
+    }
   ]
 }
 ```
@@ -322,15 +325,15 @@ docker run -p 3001:3001 \
 
 ## Variáveis de ambiente
 
-| Variável | Descrição | Default |
-|---|---|---|
-| `OAUTH_INTERNAL_API_PORT` | Porta interna do Spring Boot | `8080` |
-| `KEYCLOAK_SERVER_URL` | URL interna do Keycloak (nome do serviço na network) | `http://localhost:8080` |
-| `KEYCLOAK_REALM` | Realm usado pela aplicação | `constrsw` |
-| `KEYCLOAK_CLIENT_ID` | Client confidencial cadastrado no realm | `oauth` |
-| `KEYCLOAK_CLIENT_SECRET` | Secret do client `oauth` | *(obrigatório)* |
-| `KEYCLOAK_ADMIN` | Admin bootstrap do Keycloak (realm `master`) | `admin` |
-| `KEYCLOAK_ADMIN_PASSWORD` | Senha do admin bootstrap do Keycloak | *(obrigatório)* |
+| Variável                  | Descrição                                            | Default                 |
+| ------------------------- | ---------------------------------------------------- | ----------------------- |
+| `OAUTH_INTERNAL_API_PORT` | Porta interna do Spring Boot                         | `8080`                  |
+| `KEYCLOAK_SERVER_URL`     | URL interna do Keycloak (nome do serviço na network) | `http://localhost:8080` |
+| `KEYCLOAK_REALM`          | Realm usado pela aplicação                           | `constrsw`              |
+| `KEYCLOAK_CLIENT_ID`      | Client confidencial cadastrado no realm              | `oauth`                 |
+| `KEYCLOAK_CLIENT_SECRET`  | Secret do client `oauth`                             | _(obrigatório)_         |
+| `KEYCLOAK_ADMIN`          | Admin bootstrap do Keycloak (realm `master`)         | `admin`                 |
+| `KEYCLOAK_ADMIN_PASSWORD` | Senha do admin bootstrap do Keycloak                 | _(obrigatório)_         |
 
 O `docker-compose.yml` da raiz já injeta todas essas variáveis a partir do
 `.env`.

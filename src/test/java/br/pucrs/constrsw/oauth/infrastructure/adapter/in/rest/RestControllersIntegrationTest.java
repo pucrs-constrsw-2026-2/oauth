@@ -48,131 +48,149 @@ import br.pucrs.constrsw.oauth.domain.model.User;
 @AutoConfigureMockMvc
 class RestControllersIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+  @Autowired
+  private MockMvc mockMvc;
 
-    @MockBean
-    private JwtDecoder jwtDecoder;
+  @MockBean
+  private JwtDecoder jwtDecoder;
 
-    @MockBean private LoginUseCase loginUseCase;
-    @MockBean private CreateUserUseCase createUserUseCase;
-    @MockBean private ListUsersUseCase listUsersUseCase;
-    @MockBean private GetUserUseCase getUserUseCase;
-    @MockBean private UpdateUserUseCase updateUserUseCase;
-    @MockBean private UpdatePasswordUseCase updatePasswordUseCase;
-    @MockBean private DisableUserUseCase disableUserUseCase;
-    @MockBean private CreateRoleUseCase createRoleUseCase;
-    @MockBean private ListRolesUseCase listRolesUseCase;
-    @MockBean private GetRoleUseCase getRoleUseCase;
-    @MockBean private UpdateRoleUseCase updateRoleUseCase;
-    @MockBean private DeleteRoleUseCase deleteRoleUseCase;
-    @MockBean private AttachRoleToUserUseCase attachRoleToUserUseCase;
-    @MockBean private DetachRoleFromUserUseCase detachRoleFromUserUseCase;
+  @MockBean
+  private LoginUseCase loginUseCase;
+  @MockBean
+  private CreateUserUseCase createUserUseCase;
+  @MockBean
+  private ListUsersUseCase listUsersUseCase;
+  @MockBean
+  private GetUserUseCase getUserUseCase;
+  @MockBean
+  private UpdateUserUseCase updateUserUseCase;
+  @MockBean
+  private UpdatePasswordUseCase updatePasswordUseCase;
+  @MockBean
+  private DisableUserUseCase disableUserUseCase;
+  @MockBean
+  private CreateRoleUseCase createRoleUseCase;
+  @MockBean
+  private ListRolesUseCase listRolesUseCase;
+  @MockBean
+  private GetRoleUseCase getRoleUseCase;
+  @MockBean
+  private UpdateRoleUseCase updateRoleUseCase;
+  @MockBean
+  private DeleteRoleUseCase deleteRoleUseCase;
+  @MockBean
+  private AttachRoleToUserUseCase attachRoleToUserUseCase;
+  @MockBean
+  private DetachRoleFromUserUseCase detachRoleFromUserUseCase;
 
-    @Test
-    void loginAcceptsMultipartCredentialsWithoutAuthentication() throws Exception {
-        AuthTokens tokens = new AuthTokens("Bearer", "access-token", 300L, "refresh-token", 1800L);
-        when(loginUseCase.execute(any())).thenReturn(tokens);
+  @Test
+  void loginAcceptsMultipartCredentialsWithoutAuthentication() throws Exception {
+    AuthTokens tokens = new AuthTokens("Bearer", "access-token", 300L, "refresh-token", 1800L);
+    when(loginUseCase.execute(any())).thenReturn(tokens);
 
-        mockMvc.perform(multipart("/login")
-                        .param("username", "ana@example.com")
-                        .param("password", "secret"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.access_token").value("access-token"))
-                .andExpect(jsonPath("$.token_type").value("Bearer"));
-    }
+    mockMvc.perform(multipart("/login")
+        .param("username", "ana@example.com")
+        .param("password", "secret"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.access_token").value("access-token"))
+        .andExpect(jsonPath("$.token_type").value("Bearer"));
+  }
 
-    @Test
-    void userEndpointsTranslateRequestsAndResponses() throws Exception {
-        User user = new User("u1", "ana@example.com", "Ana", "Silva", true);
-        when(createUserUseCase.execute(nullable(String.class), any())).thenReturn(user);
-        when(listUsersUseCase.execute(nullable(String.class), any())).thenReturn(List.of(user));
-        when(getUserUseCase.execute(nullable(String.class), nullable(String.class))).thenReturn(user);
+  @Test
+  void userEndpointsTranslateRequestsAndResponses() throws Exception {
+    User user = new User("u1", "ana@example.com", "Ana", "Silva", true);
+    when(createUserUseCase.execute(nullable(String.class), any())).thenReturn(user);
+    when(listUsersUseCase.execute(nullable(String.class), any())).thenReturn(List.of(user));
+    when(getUserUseCase.execute(nullable(String.class), nullable(String.class))).thenReturn(user);
 
-        mockMvc.perform(post("/users").with(jwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"ana@example.com\",\"password\":\"secret\",\"first-name\":\"Ana\",\"last-name\":\"Silva\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value("u1"));
-        mockMvc.perform(get("/users").param("enabled", "true").with(jwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].username").value("ana@example.com"));
-        mockMvc.perform(get("/users/u1").with(jwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.enabled").value(true));
+    mockMvc.perform(post("/users").with(jwt())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(
+            "{\"username\":\"ana@example.com\",\"password\":\"secret\",\"first-name\":\"Ana\",\"last-name\":\"Silva\"}"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").value("u1"));
+    mockMvc.perform(get("/users").param("enabled", "true").with(jwt()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].username").value("ana@example.com"));
+    mockMvc.perform(get("/users/u1").with(jwt()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.enabled").value(true));
 
-        verify(listUsersUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq(true));
-    }
+    verify(listUsersUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq(true));
+  }
 
-    @Test
-    void userMutationsReturnContractStatuses() throws Exception {
-        mockMvc.perform(put("/users/u1").with(jwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"first-name\":\"Beatriz\",\"enabled\":true}"))
-                .andExpect(status().isOk());
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/users/u1").with(jwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"new-secret\"}"))
-                .andExpect(status().isOk());
-        mockMvc.perform(delete("/users/u1").with(jwt()))
-                .andExpect(status().isNoContent());
+  @Test
+  void userMutationsReturnContractStatuses() throws Exception {
+    mockMvc.perform(put("/users/u1").with(jwt())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"first-name\":\"Beatriz\",\"enabled\":true}"))
+        .andExpect(status().isOk());
+    mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/users/u1").with(jwt())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"password\":\"new-secret\"}"))
+        .andExpect(status().isOk());
+    mockMvc.perform(delete("/users/u1").with(jwt()))
+        .andExpect(status().isNoContent());
 
-        verify(updateUserUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"), any());
-        verify(updatePasswordUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"), org.mockito.ArgumentMatchers.eq("new-secret"));
-        verify(disableUserUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"));
-    }
+    verify(updateUserUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"), any());
+    verify(updatePasswordUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"),
+        org.mockito.ArgumentMatchers.eq("new-secret"));
+    verify(disableUserUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"));
+  }
 
-    @Test
-    void roleEndpointsSupportCrudAndAssignment() throws Exception {
-        Role role = new Role("r1", "teacher", "Teaching role", true);
-        when(createRoleUseCase.execute(nullable(String.class), any())).thenReturn(role);
-        when(listRolesUseCase.execute(nullable(String.class), any())).thenReturn(List.of(role));
-        when(getRoleUseCase.execute(nullable(String.class), nullable(String.class))).thenReturn(role);
+  @Test
+  void roleEndpointsSupportCrudAndAssignment() throws Exception {
+    Role role = new Role("r1", "teacher", "Teaching role", true);
+    when(createRoleUseCase.execute(nullable(String.class), any())).thenReturn(role);
+    when(listRolesUseCase.execute(nullable(String.class), any())).thenReturn(List.of(role));
+    when(getRoleUseCase.execute(nullable(String.class), nullable(String.class))).thenReturn(role);
 
-        mockMvc.perform(post("/roles").with(jwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"teacher\",\"description\":\"Teaching role\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value("r1"));
-        mockMvc.perform(get("/roles").param("enabled", "true").with(jwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("teacher"));
-        mockMvc.perform(get("/roles/r1").with(jwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("teacher"));
-        mockMvc.perform(put("/roles/r1").with(jwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"description\":\"Updated\"}"))
-                .andExpect(status().isOk());
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/roles/r1").with(jwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":false}"))
-                .andExpect(status().isOk());
-        mockMvc.perform(post("/roles/r1/users/u1").with(jwt()))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(delete("/roles/r1/users/u1").with(jwt()))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(delete("/roles/r1").with(jwt()))
-                .andExpect(status().isNoContent());
+    mockMvc.perform(post("/roles").with(jwt())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"name\":\"teacher\",\"description\":\"Teaching role\"}"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").value("r1"));
+    mockMvc.perform(get("/roles").param("enabled", "true").with(jwt()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].name").value("teacher"));
+    mockMvc.perform(get("/roles/r1").with(jwt()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.name").value("teacher"));
+    mockMvc.perform(put("/roles/r1").with(jwt())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"description\":\"Updated\"}"))
+        .andExpect(status().isOk());
+    mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/roles/r1").with(jwt())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"enabled\":false}"))
+        .andExpect(status().isOk());
+    mockMvc.perform(post("/roles/r1/users/u1").with(jwt()))
+        .andExpect(status().isNoContent());
+    mockMvc.perform(delete("/roles/r1/users/u1").with(jwt()))
+        .andExpect(status().isNoContent());
+    mockMvc.perform(delete("/roles/r1").with(jwt()))
+        .andExpect(status().isNoContent());
 
-        verify(listRolesUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq(true));
-        verify(updateRoleUseCase, org.mockito.Mockito.times(2))
-                .execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("r1"), any());
-        verify(attachRoleToUserUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"), org.mockito.ArgumentMatchers.eq("r1"));
-        verify(detachRoleFromUserUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"), org.mockito.ArgumentMatchers.eq("r1"));
-        verify(deleteRoleUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("r1"));
-    }
+    verify(listRolesUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq(true));
+    verify(updateRoleUseCase, org.mockito.Mockito.times(2))
+        .execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("r1"), any());
+    verify(attachRoleToUserUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"),
+        org.mockito.ArgumentMatchers.eq("r1"));
+    verify(detachRoleFromUserUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("u1"),
+        org.mockito.ArgumentMatchers.eq("r1"));
+    verify(deleteRoleUseCase).execute(nullable(String.class), org.mockito.ArgumentMatchers.eq("r1"));
+  }
 
-    @Test
-    void protectedEndpointsRejectAnonymousRequests() throws Exception {
-        mockMvc.perform(get("/users")).andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error_code").value("401"));
-    }
+  @Test
+  void protectedEndpointsRejectAnonymousRequests() throws Exception {
+    mockMvc.perform(get("/users")).andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error_code").value("401"));
+  }
 
-    @Test
-    void prometheusEndpointIsExposedForAuthenticatedScrapers() throws Exception {
-        mockMvc.perform(get("/actuator/prometheus").with(jwt()))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("http_server_requests")));
-    }
+  @Test
+  void prometheusEndpointIsExposedForAuthenticatedScrapers() throws Exception {
+    mockMvc.perform(get("/actuator/prometheus").with(jwt()))
+        .andExpect(status().isOk())
+        .andExpect(content().string(org.hamcrest.Matchers.containsString("http_server_requests")));
+  }
 }

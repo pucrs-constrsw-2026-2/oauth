@@ -11,15 +11,15 @@ import org.springframework.boot.actuate.metrics.export.prometheus.PrometheusScra
 @Configuration
 public class ObservabilityConfig {
 
-    @Bean
-    @ConditionalOnMissingBean(PrometheusMeterRegistry.class)
-    public PrometheusMeterRegistry prometheusMeterRegistry() {
-        return new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
-    }
+  @Bean
+  @ConditionalOnMissingBean(PrometheusMeterRegistry.class)
+  public PrometheusMeterRegistry prometheusMeterRegistry() {
+    return new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+  }
 
-    @Bean
-    @ConditionalOnMissingBean(PrometheusScrapeEndpoint.class)
-    public PrometheusScrapeEndpoint prometheusScrapeEndpoint(PrometheusMeterRegistry registry) {
-        return new PrometheusScrapeEndpoint(registry.getPrometheusRegistry());
-    }
+  @Bean
+  @ConditionalOnMissingBean(PrometheusScrapeEndpoint.class)
+  public PrometheusScrapeEndpoint prometheusScrapeEndpoint(PrometheusMeterRegistry registry) {
+    return new PrometheusScrapeEndpoint(registry.getPrometheusRegistry());
+  }
 }

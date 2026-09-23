@@ -35,137 +35,143 @@ import br.pucrs.constrsw.oauth.infrastructure.config.KeycloakProperties;
 
 class KeycloakGatewayContractTest {
 
-    private RestTemplate restTemplate;
-    private MockRestServiceServer server;
-    private KeycloakProperties properties;
+  private RestTemplate restTemplate;
+  private MockRestServiceServer server;
+  private KeycloakProperties properties;
 
-    @BeforeEach
-    void setUp() {
-        restTemplate = new RestTemplate();
-                restTemplate.setErrorHandler(new DefaultResponseErrorHandler() {
-                        @Override
-                        public boolean hasError(org.springframework.http.client.ClientHttpResponse response) {
-                                return false;
-                        }
-                });
-        server = MockRestServiceServer.bindTo(restTemplate).build();
-        properties = new KeycloakProperties();
-        properties.setBaseUrl("http://keycloak:8080");
-        properties.setRealm("constrsw");
-        properties.setClientId("oauth");
-        properties.setClientSecret("client-secret");
-    }
+  @BeforeEach
+  void setUp() {
+    restTemplate = new RestTemplate();
+    restTemplate.setErrorHandler(new DefaultResponseErrorHandler() {
+      @Override
+      public boolean hasError(org.springframework.http.client.ClientHttpResponse response) {
+        return false;
+      }
+    });
+    server = MockRestServiceServer.bindTo(restTemplate).build();
+    properties = new KeycloakProperties();
+    properties.setBaseUrl("http://keycloak:8080");
+    properties.setRealm("constrsw");
+    properties.setClientId("oauth");
+    properties.setClientSecret("client-secret");
+  }
 
-    @Test
-    void authenticatesAgainstOpenIdTokenEndpoint() {
-        server.expect(requestTo("http://keycloak:8080/realms/constrsw/protocol/openid-connect/token"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(content().string(org.hamcrest.Matchers.allOf(
-                        org.hamcrest.Matchers.containsString("client_id=oauth"),
-                        org.hamcrest.Matchers.containsString("grant_type=password"),
-                        org.hamcrest.Matchers.containsString("username=ana%40example.com"))))
-                .andRespond(withSuccess("{\"token_type\":\"Bearer\",\"access_token\":\"access\",\"expires_in\":300,\"refresh_token\":\"refresh\",\"refresh_expires_in\":1800}",
-                        MediaType.APPLICATION_JSON));
+  @Test
+  void authenticatesAgainstOpenIdTokenEndpoint() {
+    server.expect(requestTo("http://keycloak:8080/realms/constrsw/protocol/openid-connect/token"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(content().string(org.hamcrest.Matchers.allOf(
+            org.hamcrest.Matchers.containsString("client_id=oauth"),
+            org.hamcrest.Matchers.containsString("grant_type=password"),
+            org.hamcrest.Matchers.containsString("username=ana%40example.com"))))
+        .andRespond(withSuccess(
+            "{\"token_type\":\"Bearer\",\"access_token\":\"access\",\"expires_in\":300,\"refresh_token\":\"refresh\",\"refresh_expires_in\":1800}",
+            MediaType.APPLICATION_JSON));
 
-        AuthTokens tokens = new KeycloakAuthGateway(restTemplate, properties)
-                .authenticate(new Credentials("ana@example.com", "secret"));
+    AuthTokens tokens = new KeycloakAuthGateway(restTemplate, properties)
+        .authenticate(new Credentials("ana@example.com", "secret"));
 
-        assertEquals("Bearer", tokens.getTokenType());
-        assertEquals("access", tokens.getAccessToken());
-        assertEquals(300L, tokens.getExpiresIn());
-        server.verify();
-    }
+    assertEquals("Bearer", tokens.getTokenType());
+    assertEquals("access", tokens.getAccessToken());
+    assertEquals(300L, tokens.getExpiresIn());
+    server.verify();
+  }
 
-    @Test
-    void createsUserUsingLocationIdAndBearerToken() {
-        server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/users"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(header(AUTHORIZATION, "Bearer access"))
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("{\"username\":\"ana@example.com\",\"email\":\"ana@example.com\",\"enabled\":true,\"credentials\":[{\"type\":\"password\",\"value\":\"secret\",\"temporary\":false}]}" , false))
-                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
-                        .withStatus(org.springframework.http.HttpStatus.CREATED)
-                        .location(URI.create("http://keycloak:8080/admin/realms/constrsw/users/u1"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body("{}"));
+  @Test
+  void createsUserUsingLocationIdAndBearerToken() {
+    server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/users"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(header(AUTHORIZATION, "Bearer access"))
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(content().json(
+            "{\"username\":\"ana@example.com\",\"email\":\"ana@example.com\",\"enabled\":true,\"credentials\":[{\"type\":\"password\",\"value\":\"secret\",\"temporary\":false}]}",
+            false))
+        .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+            .withStatus(org.springframework.http.HttpStatus.CREATED)
+            .location(URI.create("http://keycloak:8080/admin/realms/constrsw/users/u1"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body("{}"));
 
-        User user = new KeycloakUserGateway(restTemplate, properties)
-                .create("Bearer access", new NewUser("ana@example.com", "secret", "Ana", "Silva"));
+    User user = new KeycloakUserGateway(restTemplate, properties)
+        .create("Bearer access", new NewUser("ana@example.com", "secret", "Ana", "Silva"));
 
-        assertEquals("u1", user.getId());
-        assertEquals("ana@example.com", user.getUsername());
-        assertEquals("Ana", user.getFirstName());
-        assertEquals("Silva", user.getLastName());
-        assertEquals(true, user.isEnabled());
-        server.verify();
-    }
+    assertEquals("u1", user.getId());
+    assertEquals("ana@example.com", user.getUsername());
+    assertEquals("Ana", user.getFirstName());
+    assertEquals("Silva", user.getLastName());
+    assertEquals(true, user.isEnabled());
+    server.verify();
+  }
 
-    @Test
-    void mapsDuplicateUserResponseToDomainConflict() {
-        server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/users"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
-                        .withStatus(org.springframework.http.HttpStatus.CONFLICT)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body("{\"errorMessage\":\"User exists\"}"));
+  @Test
+  void mapsDuplicateUserResponseToDomainConflict() {
+    server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/users"))
+        .andExpect(method(HttpMethod.POST))
+        .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+            .withStatus(org.springframework.http.HttpStatus.CONFLICT)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body("{\"errorMessage\":\"User exists\"}"));
 
-        assertThrows(UserAlreadyExistsException.class, () -> new KeycloakUserGateway(restTemplate, properties)
-                .create("access", new NewUser("ana@example.com", "secret", "Ana", "Silva")));
-        server.verify();
-    }
+    assertThrows(UserAlreadyExistsException.class, () -> new KeycloakUserGateway(restTemplate, properties)
+        .create("access", new NewUser("ana@example.com", "secret", "Ana", "Silva")));
+    server.verify();
+  }
 
-    @Test
-    void createsRoleThenReadsItByName() {
-        server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(header(AUTHORIZATION, "Bearer access"))
-                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
-                        .withStatus(org.springframework.http.HttpStatus.CREATED)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body("{}"));
-        server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles/teacher"))
-                .andExpect(method(HttpMethod.GET))
-                .andExpect(header(AUTHORIZATION, "Bearer access"))
-                .andRespond(withSuccess("{\"id\":\"r1\",\"name\":\"teacher\",\"description\":\"Teaching\",\"attributes\":{\"enabled\":[\"true\"]}}",
-                        MediaType.APPLICATION_JSON));
+  @Test
+  void createsRoleThenReadsItByName() {
+    server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(header(AUTHORIZATION, "Bearer access"))
+        .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+            .withStatus(org.springframework.http.HttpStatus.CREATED)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body("{}"));
+    server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles/teacher"))
+        .andExpect(method(HttpMethod.GET))
+        .andExpect(header(AUTHORIZATION, "Bearer access"))
+        .andRespond(withSuccess(
+            "{\"id\":\"r1\",\"name\":\"teacher\",\"description\":\"Teaching\",\"attributes\":{\"enabled\":[\"true\"]}}",
+            MediaType.APPLICATION_JSON));
 
-        Role role = new KeycloakRoleGateway(restTemplate, properties)
-                .create("Bearer access", new NewRole("teacher", "Teaching"));
+    Role role = new KeycloakRoleGateway(restTemplate, properties)
+        .create("Bearer access", new NewRole("teacher", "Teaching"));
 
-        assertEquals("r1", role.getId());
-        assertEquals("teacher", role.getName());
-        assertEquals(true, role.isEnabled());
-        server.verify();
-    }
+    assertEquals("r1", role.getId());
+    assertEquals("teacher", role.getName());
+    assertEquals(true, role.isEnabled());
+    server.verify();
+  }
 
-    @Test
-    void deletesRoleLogicallyThroughRolesByIdEndpoint() {
-        server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles-by-id/r1"))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("{\"id\":\"r1\",\"name\":\"teacher\",\"description\":\"Teaching\",\"attributes\":{\"enabled\":[\"true\"]}}",
-                        MediaType.APPLICATION_JSON));
-        server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles-by-id/r1"))
-                .andExpect(method(HttpMethod.PUT))
-                .andExpect(header(AUTHORIZATION, "Bearer access"))
-                .andExpect(content().json("{\"id\":\"r1\",\"name\":\"teacher\",\"attributes\":{\"enabled\":[\"false\"]}}", false))
-                .andRespond(withNoContent());
+  @Test
+  void deletesRoleLogicallyThroughRolesByIdEndpoint() {
+    server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles-by-id/r1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess(
+            "{\"id\":\"r1\",\"name\":\"teacher\",\"description\":\"Teaching\",\"attributes\":{\"enabled\":[\"true\"]}}",
+            MediaType.APPLICATION_JSON));
+    server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles-by-id/r1"))
+        .andExpect(method(HttpMethod.PUT))
+        .andExpect(header(AUTHORIZATION, "Bearer access"))
+        .andExpect(
+            content().json("{\"id\":\"r1\",\"name\":\"teacher\",\"attributes\":{\"enabled\":[\"false\"]}}", false))
+        .andRespond(withNoContent());
 
-        new KeycloakRoleGateway(restTemplate, properties).delete("Bearer access", "r1");
-        server.verify();
-    }
+    new KeycloakRoleGateway(restTemplate, properties).delete("Bearer access", "r1");
+    server.verify();
+  }
 
-    @Test
-    void assignsRoleWithKeycloakRoleMappingPayload() {
-        server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles-by-id/r1"))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("{\"id\":\"r1\",\"name\":\"teacher\"}", MediaType.APPLICATION_JSON));
-        server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/users/u1/role-mappings/realm"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(header(AUTHORIZATION, "Bearer access"))
-                .andExpect(content().json("[{\"id\":\"r1\",\"name\":\"teacher\"}]"))
-                .andRespond(withNoContent());
+  @Test
+  void assignsRoleWithKeycloakRoleMappingPayload() {
+    server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/roles-by-id/r1"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("{\"id\":\"r1\",\"name\":\"teacher\"}", MediaType.APPLICATION_JSON));
+    server.expect(requestTo("http://keycloak:8080/admin/realms/constrsw/users/u1/role-mappings/realm"))
+        .andExpect(method(HttpMethod.POST))
+        .andExpect(header(AUTHORIZATION, "Bearer access"))
+        .andExpect(content().json("[{\"id\":\"r1\",\"name\":\"teacher\"}]"))
+        .andRespond(withNoContent());
 
-        new KeycloakRoleGateway(restTemplate, properties).assignToUser("Bearer access", "u1", "r1");
-        server.verify();
-    }
+    new KeycloakRoleGateway(restTemplate, properties).assignToUser("Bearer access", "u1", "r1");
+    server.verify();
+  }
 }
