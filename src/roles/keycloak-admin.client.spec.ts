@@ -7,10 +7,8 @@ describe("KeycloakAdminClient", () => {
     KEYCLOAK_URL: "http://keycloak:8080",
     KEYCLOAK_REALM: "constrsw",
     KEYCLOAK_TIMEOUT_MS: 5000,
-    KEYCLOAK_ADMIN_REALM: "master",
-    KEYCLOAK_ADMIN_CLIENT_ID: "admin-cli",
-    KEYCLOAK_ADMIN: "admin",
-    KEYCLOAK_ADMIN_PASSWORD: "secret",
+    KEYCLOAK_ADMIN_CLIENT_ID: "oauth",
+    KEYCLOAK_ADMIN_CLIENT_SECRET: "client-secret",
   };
 
   function createClient() {
@@ -63,15 +61,15 @@ describe("KeycloakAdminClient", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       new URL(
-        "http://keycloak:8080/realms/master/protocol/openid-connect/token",
+        "http://keycloak:8080/realms/constrsw/protocol/openid-connect/token",
       ),
       expect.objectContaining({ method: "POST" }),
     );
     const [tokenUrl, tokenOptions] = fetchMock.mock.calls[0];
     expect(
       String((tokenOptions?.body as URLSearchParams).toString()),
-    ).toContain("client_id=admin-cli");
-    expect(String(tokenUrl)).toContain("/realms/master/");
+    ).toContain("client_id=oauth");
+    expect(String(tokenUrl)).toContain("/realms/constrsw/");
 
     const [rolesUrl, rolesOptions] = fetchMock.mock.calls[1];
     // Must request the full representation so role attributes are returned.

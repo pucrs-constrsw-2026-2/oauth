@@ -8,8 +8,8 @@ function createDto(overrides: Partial<CreateUserDto> = {}) {
   return Object.assign(new CreateUserDto(), {
     username: "ana.souza@pucrs.br",
     email: "ana.souza@pucrs.br",
-    firstName: "Ana",
-    lastName: "Souza",
+    "first-name": "Ana",
+    "last-name": "Souza",
     password: "senha-segura",
     ...overrides,
   });
@@ -42,13 +42,13 @@ describe("CreateUserDto", () => {
     const dto = plainToInstance(CreateUserDto, {
       username: "  ana.souza@pucrs.br  ",
       email: "  ana.souza@pucrs.br  ",
-      firstName: "  Ana  ",
-      lastName: "Souza",
+      "first-name": "  Ana  ",
+      "last-name": "Souza",
       password: "senha-segura",
     });
 
     await expect(validate(dto)).resolves.toHaveLength(0);
-    expect(dto.firstName).toBe("Ana");
+    expect(dto["first-name"]).toBe("Ana");
     expect(dto.email).toBe("ana.souza@pucrs.br");
   });
 
@@ -56,14 +56,14 @@ describe("CreateUserDto", () => {
     const dto = plainToInstance(CreateUserDto, {
       username: "ana.souza@pucrs.br",
       email: "ana.souza@pucrs.br",
-      firstName: "   ",
-      lastName: "Souza",
+      "first-name": "   ",
+      "last-name": "Souza",
       password: "senha-segura",
     });
 
     await expect(validate(dto)).resolves.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ property: "firstName" }),
+        expect.objectContaining({ property: "first-name" }),
       ]),
     );
   });
@@ -84,8 +84,8 @@ describe("ReplaceUserDto", () => {
     const dto = Object.assign(new ReplaceUserDto(), {
       username: "ana.souza@pucrs.br",
       email: "ana.souza@pucrs.br",
-      firstName: "Ana",
-      lastName: "Souza",
+      "first-name": "Ana",
+      "last-name": "Souza",
     });
 
     await expect(validate(dto)).resolves.toHaveLength(0);
@@ -94,8 +94,8 @@ describe("ReplaceUserDto", () => {
   it("rejects a missing username", async () => {
     const dto = Object.assign(new ReplaceUserDto(), {
       email: "ana.souza@pucrs.br",
-      firstName: "Ana",
-      lastName: "Souza",
+      "first-name": "Ana",
+      "last-name": "Souza",
     });
 
     await expect(validate(dto)).resolves.toEqual(

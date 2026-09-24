@@ -158,9 +158,12 @@ describe("Roles (e2e)", () => {
 
   const server = () => app.getHttpServer();
 
+  const auth = { Authorization: "Bearer test-token" as const };
+
   it("runs the full CRUD lifecycle ending in a logical delete", async () => {
     const created = await request(server())
       .post("/roles")
+      .set(auth)
       .send({ name: "professor", description: "Docente" })
       .expect(201);
     const id = created.body.id as string;
@@ -169,28 +172,32 @@ describe("Roles (e2e)", () => {
 
     await request(server())
       .get("/roles")
+      .set(auth)
       .expect(200)
       .expect((res) => expect(res.body).toHaveLength(1));
 
-    await request(server()).get(`/roles/${id}`).expect(200);
+    await request(server()).get(`/roles/${id}`).set(auth).expect(200);
 
     await request(server())
       .put(`/roles/${id}`)
+      .set(auth)
       .send({ name: "professor-x" })
       .expect(200)
       .expect((res) => expect(res.body.name).toBe("professor-x"));
 
     await request(server())
       .patch(`/roles/${id}`)
+      .set(auth)
       .send({ description: "atualizado" })
       .expect(200);
 
-    await request(server()).delete(`/roles/${id}`).expect(204);
+    await request(server()).delete(`/roles/${id}`).set(auth).expect(204);
 
     // After logical delete the role is hidden from every read path.
-    await request(server()).get(`/roles/${id}`).expect(404);
+    await request(server()).get(`/roles/${id}`).set(auth).expect(404);
     await request(server())
       .get("/roles")
+      .set(auth)
       .expect(200)
       .expect((res) => expect(res.body).toHaveLength(0));
   });
@@ -198,28 +205,31 @@ describe("Roles (e2e)", () => {
   it("assigns and unassigns a role to a user", async () => {
     const created = await request(server())
       .post("/roles")
+      .set(auth)
       .send({ name: "aluno" })
       .expect(201);
     const id = created.body.id as string;
 
-    await request(server()).post(`/roles/${id}/users/user-1`).expect(204);
+    await request(server()).post(`/roles/${id}/users/user-1`).set(auth).expect(204);
     expect(keycloak.assignments.get("user-1")?.has(id)).toBe(true);
 
-    await request(server()).delete(`/roles/${id}/users/user-1`).expect(204);
+    await request(server()).delete(`/roles/${id}/users/user-1`).set(auth).expect(204);
     expect(keycloak.assignments.get("user-1")?.has(id)).toBe(false);
   });
 
   it("maps upstream conflicts and missing roles to problem responses", async () => {
-    await request(server()).post("/roles").send({ name: "dup" }).expect(201);
+    await request(server()).post("/roles").set(auth).send({ name: "dup" }).expect(201);
 
     await request(server())
       .post("/roles")
+      .set(auth)
       .send({ name: "dup" })
       .expect(409)
       .expect((res) => expect(res.body.error_code).toBe("OA-409"));
 
     await request(server())
       .get("/roles/inexistente")
+      .set(auth)
       .expect(404)
       .expect((res) => expect(res.body.error_code).toBe("OA-404"));
   });
@@ -227,6 +237,7 @@ describe("Roles (e2e)", () => {
   it("rejects invalid payloads with 400", async () => {
     await request(server())
       .post("/roles")
+      .set(auth)
       .send({ description: "sem nome" })
       .expect(400)
       .expect((res) => expect(res.body.error_code).toBe("OA-400"));

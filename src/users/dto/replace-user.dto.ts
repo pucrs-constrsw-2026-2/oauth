@@ -7,6 +7,7 @@ import {
   MinLength,
   ValidateIf,
 } from "class-validator";
+import { Transform } from "class-transformer";
 import { RFC_5322_EMAIL, RFC_5322_MESSAGE } from "./rfc5322";
 import { Trim } from "./trim";
 
@@ -29,18 +30,20 @@ export class ReplaceUserDto {
   email!: string;
 
   @ApiProperty({ example: "Ana" })
+  @Transform(({ value, obj }) => value ?? obj?.firstName)
   @Trim()
-  @IsString({ message: "firstName é obrigatório" })
-  @MinLength(1, { message: "firstName não pode ser vazio" })
-  @MaxLength(255, { message: "firstName deve ter no máximo 255 caracteres" })
-  firstName!: string;
+  @IsString({ message: "first-name é obrigatório" })
+  @MinLength(1, { message: "first-name não pode ser vazio" })
+  @MaxLength(255, { message: "first-name deve ter no máximo 255 caracteres" })
+  "first-name"!: string;
 
   @ApiProperty({ example: "Souza" })
+  @Transform(({ value, obj }) => value ?? obj?.lastName)
   @Trim()
-  @IsString({ message: "lastName é obrigatório" })
-  @MinLength(1, { message: "lastName não pode ser vazio" })
-  @MaxLength(255, { message: "lastName deve ter no máximo 255 caracteres" })
-  lastName!: string;
+  @IsString({ message: "last-name é obrigatório" })
+  @MinLength(1, { message: "last-name não pode ser vazio" })
+  @MaxLength(255, { message: "last-name deve ter no máximo 255 caracteres" })
+  "last-name"!: string;
 
   @ApiPropertyOptional({
     default: true,

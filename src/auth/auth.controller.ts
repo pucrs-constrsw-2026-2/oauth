@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  HttpCode,
+  HttpStatus,
   Post,
   Req,
   Res,
@@ -32,6 +34,7 @@ export class AuthController {
   ) {}
 
   @Post("login")
+  @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(AnyFilesInterceptor())
   @ApiOperation({ summary: "Autentica um usuário" })
   @ApiCreatedResponse({ description: "Tokens emitidos" })

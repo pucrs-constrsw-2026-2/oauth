@@ -31,10 +31,8 @@ export class KeycloakAdminClient {
   private readonly baseUrl: string;
   private readonly realm: string;
   private readonly timeoutMs: number;
-  private readonly adminRealm: string;
   private readonly adminClientId: string;
-  private readonly adminUsername: string;
-  private readonly adminPassword: string;
+  private readonly adminClientSecret: string;
 
   private cachedToken?: { accessToken: string; expiresAt: number };
 
@@ -42,13 +40,11 @@ export class KeycloakAdminClient {
     this.baseUrl = this.config.getOrThrow<string>("KEYCLOAK_URL");
     this.realm = this.config.getOrThrow<string>("KEYCLOAK_REALM");
     this.timeoutMs = this.config.getOrThrow<number>("KEYCLOAK_TIMEOUT_MS");
-    this.adminRealm = this.config.getOrThrow<string>("KEYCLOAK_ADMIN_REALM");
     this.adminClientId = this.config.getOrThrow<string>(
       "KEYCLOAK_ADMIN_CLIENT_ID",
     );
-    this.adminUsername = this.config.getOrThrow<string>("KEYCLOAK_ADMIN");
-    this.adminPassword = this.config.getOrThrow<string>(
-      "KEYCLOAK_ADMIN_PASSWORD",
+    this.adminClientSecret = this.config.getOrThrow<string>(
+      "KEYCLOAK_ADMIN_CLIENT_SECRET",
     );
   }
 
@@ -138,14 +134,13 @@ export class KeycloakAdminClient {
     }
     const response = await requestToken(
       new URL(
-        `/realms/${this.adminRealm}/protocol/openid-connect/token`,
+        `/realms/${this.realm}/protocol/openid-connect/token`,
         this.baseUrl,
       ),
       new URLSearchParams({
-        grant_type: "password",
+        grant_type: "client_credentials",
         client_id: this.adminClientId,
-        username: this.adminUsername,
-        password: this.adminPassword,
+        client_secret: this.adminClientSecret,
       }),
       this.timeoutMs,
     );

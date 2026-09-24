@@ -48,8 +48,8 @@ export class UsersService {
     const representation: KeycloakUserRepresentation = {
       username: input.username,
       email: input.email,
-      firstName: input.firstName,
-      lastName: input.lastName,
+      firstName: input["first-name"],
+      lastName: input["last-name"],
       enabled: input.enabled ?? true,
       emailVerified: false,
       credentials: [
@@ -57,13 +57,9 @@ export class UsersService {
       ],
     };
 
-    const response = await this.admin.post(
-      "/users",
-      representation,
-      accessToken,
-    );
+    const response = await this.admin.post("/users", representation);
     const id = this.idFromLocation(response.headers.get("location"));
-    return this.toCreatedResponse(await this.admin.get(this.userPath(id), accessToken));
+    return this.toCreatedResponse(await this.admin.get(this.userPath(id)));
   }
 
   async update(
@@ -76,8 +72,8 @@ export class UsersService {
       {
         username: input.username,
         email: input.email,
-        firstName: input.firstName,
-        lastName: input.lastName,
+        firstName: input["first-name"],
+        lastName: input["last-name"],
         enabled: input.enabled ?? true,
         emailVerified: false,
       },
@@ -112,18 +108,16 @@ export class UsersService {
           value: password,
           temporary: false,
         },
-        accessToken,
       );
     }
-
     if (Object.keys(fields).length > 0) {
       if (fields.email !== undefined) fields.emailVerified = false;
-      await this.admin.put(this.userPath(id), fields, accessToken);
+      await this.admin.put(this.userPath(id), fields);
     }
   }
 
   async delete(accessToken: string, id: string): Promise<void> {
-    await this.admin.put(this.userPath(id), { enabled: false }, accessToken);
+    await this.admin.put(this.userPath(id), { enabled: false });
   }
 
   private async find(accessToken: string, id: string): Promise<KeycloakUser> {

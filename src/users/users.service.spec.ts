@@ -42,8 +42,8 @@ function createReadClient() {
 const newUser: CreateUserDto = {
   username: "ana.souza@pucrs.br",
   email: "ana.souza@pucrs.br",
-  firstName: "Ana",
-  lastName: "Souza",
+  "first-name": "Ana",
+  "last-name": "Souza",
   password: "senha-segura",
 };
 
@@ -143,9 +143,8 @@ describe("UsersService", () => {
           { type: "password", value: newUser.password, temporary: false },
         ],
       }),
-      "token",
     );
-    expect(admin.get).toHaveBeenCalledWith("/users/u-9", "token");
+    expect(admin.get).toHaveBeenCalledWith("/users/u-9");
   });
 
   it("updates the complete user representation", async () => {
@@ -155,8 +154,8 @@ describe("UsersService", () => {
     await service.update("token", "u-9", {
       username: newUser.username,
       email: "nova@pucrs.br",
-      firstName: newUser.firstName,
-      lastName: newUser.lastName,
+      "first-name": newUser["first-name"],
+      "last-name": newUser["last-name"],
     });
 
     expect(admin.put).toHaveBeenCalledWith(
@@ -164,12 +163,11 @@ describe("UsersService", () => {
       {
         username: newUser.username,
         email: "nova@pucrs.br",
-        firstName: newUser.firstName,
-        lastName: newUser.lastName,
+        firstName: newUser["first-name"],
+        lastName: newUser["last-name"],
         enabled: true,
         emailVerified: false,
       },
-      "token",
     );
   });
 
@@ -186,7 +184,6 @@ describe("UsersService", () => {
       1,
       "/users/u-9/reset-password",
       { type: "password", value: "senha-nova", temporary: false },
-      "token",
     );
     expect(admin.put).toHaveBeenNthCalledWith(
       2,
@@ -194,7 +191,6 @@ describe("UsersService", () => {
       {
         firstName: "Aninha",
       },
-      "token",
     );
   });
 
@@ -217,7 +213,6 @@ describe("UsersService", () => {
     expect(admin.put).toHaveBeenCalledWith(
       "/users/u%209%2F..%2Fadmin",
       { enabled: false },
-      "token",
     );
     expect(admin.delete).not.toHaveBeenCalled();
   });
