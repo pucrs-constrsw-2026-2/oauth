@@ -85,7 +85,7 @@ describe("RolesService", () => {
     const { service, admin } = createService();
     admin.getRoleById.mockResolvedValue({ id: "r1", name: "professor" });
 
-    await service.remove("r1");
+    await service.delete("r1");
 
     expect(admin.updateRoleById).toHaveBeenCalledWith(
       "r1",
@@ -135,7 +135,11 @@ describe("RolesService", () => {
   it("patches only the provided fields", async () => {
     const { service, admin } = createService();
     admin.getRoleById
-      .mockResolvedValueOnce({ id: "r1", name: "antigo", description: "manter" })
+      .mockResolvedValueOnce({
+        id: "r1",
+        name: "antigo",
+        description: "manter",
+      })
       .mockResolvedValueOnce({
         id: "r1",
         name: "antigo",

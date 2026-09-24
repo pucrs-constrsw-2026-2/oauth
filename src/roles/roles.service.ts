@@ -57,7 +57,7 @@ export class RolesService {
     return this.toResponse(await this.keycloak.getRoleById(id));
   }
 
-  async remove(id: string): Promise<void> {
+  async delete(id: string): Promise<void> {
     const role = await this.getActiveRole(id);
     await this.keycloak.updateRoleById(id, {
       ...role,

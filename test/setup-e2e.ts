@@ -13,6 +13,7 @@ process.env.KEYCLOAK_ADMIN = "admin";
 process.env.KEYCLOAK_ADMIN_PASSWORD = "secret";
 process.env.KEYCLOAK_ADMIN_REALM = "master";
 process.env.KEYCLOAK_ADMIN_CLIENT_ID = "admin-cli";
+process.env.KEYCLOAK_ADMIN_CLIENT_SECRET = "admin-secret";
 process.env.SESSION_COOKIE_NAME = "session";
 process.env.COOKIE_SECURE = "false";
 process.env.COOKIE_SAME_SITE = "lax";

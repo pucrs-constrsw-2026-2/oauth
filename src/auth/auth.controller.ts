@@ -8,7 +8,13 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AnyFilesInterceptor } from "@nestjs/platform-express";
-import { ApiTags } from "@nestjs/swagger";
+import {
+  ApiBadRequestResponse,
+  ApiCreatedResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 import type { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
@@ -17,7 +23,7 @@ import type {
   LogoutResponse,
 } from "./interfaces/auth-response.interface";
 
-@ApiTags("auth")
+@ApiTags("Auth")
 @Controller()
 export class AuthController {
   constructor(
@@ -27,6 +33,10 @@ export class AuthController {
 
   @Post("login")
   @UseInterceptors(AnyFilesInterceptor())
+  @ApiOperation({ summary: "Autentica um usuário" })
+  @ApiCreatedResponse({ description: "Tokens emitidos" })
+  @ApiBadRequestResponse({ description: "Payload de login inválido" })
+  @ApiUnauthorizedResponse({ description: "Username ou password inválidos" })
   async login(
     @Body() input: LoginDto,
     @Res({ passthrough: true }) response: Response,
@@ -37,6 +47,9 @@ export class AuthController {
   }
 
   @Post("refresh")
+  @ApiOperation({ summary: "Renova os tokens da sessão" })
+  @ApiCreatedResponse({ description: "Tokens renovados" })
+  @ApiUnauthorizedResponse({ description: "Refresh token inválido" })
   async refresh(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
@@ -54,6 +67,8 @@ export class AuthController {
   }
 
   @Post("logout")
+  @ApiOperation({ summary: "Encerra a sessão" })
+  @ApiCreatedResponse({ description: "Sessão encerrada" })
   logout(@Res({ passthrough: true }) response: Response): LogoutResponse {
     response.clearCookie(this.config.getOrThrow<string>("SESSION_COOKIE_NAME"));
     return { status: "signed_out" };

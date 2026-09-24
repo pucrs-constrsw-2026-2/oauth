@@ -7,7 +7,7 @@ function createController() {
     findOne: jest.fn(),
     update: jest.fn(),
     patch: jest.fn(),
-    remove: jest.fn(),
+    delete: jest.fn(),
     assignToUser: jest.fn(),
     removeFromUser: jest.fn(),
   };
@@ -19,9 +19,10 @@ describe("RolesController", () => {
     const { controller, roles } = createController();
     roles.create.mockResolvedValue({ id: "r1", name: "professor" });
 
-    await expect(
-      controller.create({ name: "professor" }),
-    ).resolves.toEqual({ id: "r1", name: "professor" });
+    await expect(controller.create({ name: "professor" })).resolves.toEqual({
+      id: "r1",
+      name: "professor",
+    });
     expect(roles.create).toHaveBeenCalledWith({ name: "professor" });
   });
 
@@ -62,9 +63,9 @@ describe("RolesController", () => {
   it("delegates logical deletion to the service", async () => {
     const { controller, roles } = createController();
 
-    await controller.remove("r1");
+    await controller.delete("r1");
 
-    expect(roles.remove).toHaveBeenCalledWith("r1");
+    expect(roles.delete).toHaveBeenCalledWith("r1");
   });
 
   it("delegates role assignment to the service", async () => {

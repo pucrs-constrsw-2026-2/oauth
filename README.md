@@ -54,6 +54,8 @@ o volume mantém a configuração.
   `error_description`, `error_source` e `error_stack`. O status HTTP permanece
   na resposta HTTP, e nunca devolvemos senha, token, segredo, payload do
   Keycloak ou stack trace.
+- **As mutações de usuários usam o Admin API.** O gateway mantém o bearer recebido na superfície pública e usa o cliente administrativo para criar, atualizar, alterar senha e desabilitar usuários.
+- **Erros são seguros.** A API responde `application/json` no envelope acordado pelo grupo: `error_code`, `error_description`, `error_source` e `error_stack` (array de `{source, code, description}`).
 
 ### Por que um serviço separado?
 
@@ -93,8 +95,12 @@ elas o serviço não consegue token de admin e responde `503`.
 
 | Método | Rota | Descrição |
 | ------ | ---- | --------- |
+| POST | `/` | Cria um usuário e retorna o `id` do header `Location`. → `201` |
 | GET | `/` | Lista usuários; aceita `?enabled=true|false`. |
 | GET | `/{id}` | Recupera um usuário. |
+| PUT | `/{id}` | Atualiza os dados do usuário. → `200` |
+| PATCH | `/{id}` | Atualiza parcialmente o usuário ou sua senha. → `200` |
+| DELETE | `/{id}` | Desabilita logicamente o usuário. → `204` |
 
 ## Variáveis de ambiente
 
@@ -105,8 +111,9 @@ elas o serviço não consegue token de admin e responde `503`.
 | `KEYCLOAK_REALM`                          | `constrsw`             | Realm da aplicação                   |
 | `KEYCLOAK_CLIENT_ID` / `_SECRET`          | `oauth` / `…`          | Cliente usado no login               |
 | `KEYCLOAK_TIMEOUT_MS`                     | `5000`                 | Timeout das chamadas ao Keycloak     |
-| `KEYCLOAK_ADMIN` / `_PASSWORD`            | `admin` / `a12345678`  | Credenciais de admin (roles)         |
-| `KEYCLOAK_ADMIN_REALM` / `_CLIENT_ID`     | `master` / `admin-cli` | Onde/como obter o token de admin     |
+| `KEYCLOAK_ADMIN` / `_PASSWORD`            | `admin` / `a12345678`  | Credenciais administrativas          |
+| `KEYCLOAK_ADMIN_REALM` / `_CLIENT_ID`     | `master` / `oauth-admin` | Realm e client administrativos      |
+| `KEYCLOAK_ADMIN_CLIENT_SECRET`            | `…`                    | Segredo do client administrativo     |
 | `SESSION_COOKIE_NAME`                     | `closed_cras_session`  | Nome do cookie de sessão             |
 | `COOKIE_SECURE` / `COOKIE_SAME_SITE`      | `false` / `lax`        | Flags do cookie                      |
 
