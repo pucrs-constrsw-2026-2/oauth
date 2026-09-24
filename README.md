@@ -40,7 +40,9 @@ interna do container e `3001`).
 
 - Swagger: http://localhost:8181/swagger
 - Health check: http://localhost:8181/health
+- Metricas (Prometheus/OpenMetrics): http://localhost:8281/metrics
 - Keycloak (console admin): http://localhost:8081 (`admin` / `a12345678`)
+- Prometheus (raiz do repo `base`, `docker volume create constrsw-prometheus-data` antes do primeiro `up`): http://localhost:9090/targets
 
 Para rodar so a API localmente (sem Docker), com o Keycloak do compose ja
 de pe:
@@ -95,6 +97,12 @@ que e repassado como esta para a Admin REST API do Keycloak.
    usuarios tem esse flag). `DELETE /roles/:id` remove o role de fato.
 6. **`refresh_expires_in`**: o enunciado tem um typo (`referesh_expires_in`);
    devolvemos o campo exatamente como o Keycloak retorna (`refresh_expires_in`).
+7. **Metricas Prometheus**: instrumentacao automatica via OpenTelemetry
+   (`HttpInstrumentation`/`ExpressInstrumentation`), exportadas em `/metrics`
+   (porta `OAUTH_INTERNAL_METRICS_PORT`) via `PrometheusExporter` (pull, sem
+   passar pelo `otel-collector`). Corrigimos o job `auth` do
+   `prometheus.yml` central (target `auth:9464` -> `oauth:9464`), ja que o
+   nosso servico no `docker-compose.yml` se chama `oauth`.
 
 ## Cheat-sheet de curl
 
