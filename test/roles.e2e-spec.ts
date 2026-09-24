@@ -9,6 +9,7 @@ interface FakeRole {
   name: string;
   description?: string;
   attributes?: Record<string, string[]>;
+  clientRole?: boolean;
 }
 
 const REALM_BASE = "/admin/realms/constrsw";
@@ -76,6 +77,23 @@ function createKeycloakFake() {
       return response(200, list);
     }
 
+    // Holders of a role (used by the logical delete to strip mappings).
+    const holders = path.match(
+      /^\/admin\/realms\/constrsw\/roles\/([^/]+)\/users$/,
+    );
+    if (holders && method === "GET") {
+      const name = decodeURIComponent(holders[1]);
+      const role = [...roles.values()].find((r) => r.name === name);
+      if (!role) return response(404);
+      const first = Number(url.searchParams.get("first") ?? 0);
+      const max = Number(url.searchParams.get("max") ?? 100);
+      const ids = [...assignments.entries()]
+        .filter(([, set]) => set.has(role.id))
+        .map(([userId]) => ({ id: userId }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+      return response(200, ids.slice(first, first + max));
+    }
+
     const byName = path.match(/^\/admin\/realms\/constrsw\/roles\/(.+)$/);
     if (byName && method === "GET") {
       const role = [...roles.values()].find(
@@ -94,6 +112,10 @@ function createKeycloakFake() {
       if (method === "PUT") {
         const current = roles.get(id);
         if (!current) return response(404);
+        const nameTaken = [...roles.values()].some(
+          (r) => r.id !== id && r.name === body.name,
+        );
+        if (nameTaken) return response(409);
         roles.set(id, {
           ...current,
           name: body.name ?? current.name,
@@ -241,5 +263,104 @@ describe("Roles (e2e)", () => {
       .send({ description: "sem nome" })
       .expect(400)
       .expect((res) => expect(res.body.error_code).toBe("OA-400"));
+  });
+
+  it("strips a deleted role from its holders and still allows unassigning it", async () => {
+    const created = await request(server())
+      .post("/roles")
+      .set(auth)
+      .send({ name: "monitor" })
+      .expect(201);
+    const id = created.body.id as string;
+    await request(server())
+      .post(`/roles/${id}/users/user-1`)
+      .set(auth)
+      .expect(204);
+    await request(server())
+      .post(`/roles/${id}/users/user-2`)
+      .set(auth)
+      .expect(204);
+
+    await request(server()).delete(`/roles/${id}`).set(auth).expect(204);
+
+    expect(keycloak.assignments.get("user-1")?.has(id)).toBe(false);
+    expect(keycloak.assignments.get("user-2")?.has(id)).toBe(false);
+    expect(keycloak.roles.get(id)?.attributes).toEqual({ deleted: ["true"] });
+    await request(server())
+      .delete(`/roles/${id}/users/user-1`)
+      .set(auth)
+      .expect(204);
+  });
+
+  it("explains a name conflict with a logically deleted role", async () => {
+    const created = await request(server())
+      .post("/roles")
+      .set(auth)
+      .send({ name: "antigo" })
+      .expect(201);
+    await request(server())
+      .delete(`/roles/${created.body.id}`)
+      .set(auth)
+      .expect(204);
+
+    await request(server())
+      .post("/roles")
+      .set(auth)
+      .send({ name: "antigo" })
+      .expect(409)
+      .expect((res) =>
+        expect(res.body.error_description).toMatch(/papel excluído/),
+      );
+  });
+
+  it("words a rename conflict as a role conflict", async () => {
+    await request(server())
+      .post("/roles")
+      .set(auth)
+      .send({ name: "a" })
+      .expect(201);
+    const b = await request(server())
+      .post("/roles")
+      .set(auth)
+      .send({ name: "b" })
+      .expect(201);
+
+    for (const method of ["put", "patch"] as const) {
+      await request(server())
+        [method](`/roles/${b.body.id}`)
+        .set(auth)
+        .send({ name: "a" })
+        .expect(409)
+        .expect((res) =>
+          expect(res.body.error_description).toBe(
+            "Já existe um papel com este nome.",
+          ),
+        );
+    }
+  });
+
+  it("does not expose client roles through the by-id endpoints", async () => {
+    keycloak.roles.set("client-1", {
+      id: "client-1",
+      name: "manage-users",
+      clientRole: true,
+    });
+
+    await request(server()).get("/roles/client-1").set(auth).expect(404);
+    await request(server())
+      .patch("/roles/client-1")
+      .set(auth)
+      .send({ description: "x" })
+      .expect(404);
+    await request(server()).delete("/roles/client-1").set(auth).expect(404);
+    await request(server())
+      .post("/roles/client-1/users/user-1")
+      .set(auth)
+      .expect(404)
+      .expect((res) =>
+        expect(res.body.error_description).toBe(
+          "Papel não encontrado no realm.",
+        ),
+      );
   });
 });

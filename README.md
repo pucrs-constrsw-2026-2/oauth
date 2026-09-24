@@ -35,29 +35,37 @@ o volume mantém a configuração.
 
 ## Decisões importantes
 
-- **O login pertence a este módulo.** A rota pública é `POST /login`;
-  não existe login no BFF. Isso elimina a duplicação de clientes Keycloak e deixa
-  autenticação, sessão e configuração num único lugar.
+- **O login pertence a este módulo.** O `backend/oauth` é um serviço executável e
+  autocontido. A rota pública é `POST /login`; não existe login no BFF. Isso
+  elimina a duplicação de clientes Keycloak e deixa autenticação, sessão e
+  configuração num único lugar.
 - **O browser nunca chama o Keycloak.** O serviço faz o Direct Access Grant
   internamente, devolve os tokens no corpo de login conforme o contrato e também
-  mantém a sessão em cookie `httpOnly`.
-- **Operações administrativas usam um token de admin.** As rotas de roles falam
-  com a Admin REST API do Keycloak. Para isso o serviço obtém um token via
-  `grant_type=password` no cliente `admin-cli` do realm `master`, usando
-  `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD`. Esse caminho é separado do login
-  de usuário (que usa o cliente confidencial em `KEYCLOAK_CLIENT_ID`).
-- **Roles são realm roles do Keycloak.** O serviço não mantém banco próprio: o
-  CRUD de roles é um proxy sobre a Admin API. Como realm roles não têm exclusão
-  nativa, o `DELETE` é uma **exclusão lógica** (grava o atributo `deleted=true` no
-  role); roles marcados somem das leituras.
+  mantém access token e refresh token em cookie `httpOnly`. Assim, tokens não ficam
+  expostos ao JavaScript nem ao `localStorage`.
+- **`client_credentials` não autentica pessoas.** Esse fluxo é o do **Admin API**:
+  o client de service account `oauth-admin` (`KEYCLOAK_ADMIN_CLIENT_ID` /
+  `KEYCLOAK_ADMIN_CLIENT_SECRET`) obtém o token administrativo usado pelas rotas de
+  CRUD de usuários e de roles. O login de usuário continua em `grant_type=password`
+  no cliente confidencial de `KEYCLOAK_CLIENT_ID`. Como `client_credentials`
+  identifica uma aplicação, não uma pessoa, os dois fluxos ficam separados.
+- **Roles são realm roles do Keycloak.** O serviço não mantém banco próprio: o CRUD
+  de roles é um proxy sobre a Admin API, através do mesmo cliente de service
+  account. Como realm roles não têm exclusão nativa, o `DELETE` é uma **exclusão
+  lógica** (grava o atributo `deleted=true` no role); roles marcados somem das
+  leituras e suas atribuições são removidas dos usuários.
 - **Erros são seguros.** A API responde `application/json` no envelope acordado
   pelo grupo: `error_code`, `error_description`, `error_source` e `error_stack`
   (array de `{ error_code, error_description, error_source }`, do upstream
   `Keycloak` até o `OAuthAPI`). O status HTTP permanece na resposta HTTP, e nunca
-  devolvemos senha, token, segredo, payload do Keycloak ou stack trace.
+  devolvemos senha, token, segredo, payload do Keycloak ou stack trace de runtime —
+  em produção nem a causa de um erro inesperado, que fica só no log.
 - **As mutações de usuários repassam o bearer recebido.** O gateway encaminha o
   access token do chamador à Admin API — produzindo `401`/`403` reais — para
   criar, atualizar, alterar senha e desabilitar usuários.
+- **A escrita de usuários e o CRUD de roles moram aqui.** `POST/PUT/PATCH/DELETE
+  /users` (trilha DEV B) e `/roles` + role-mapping (trilha DEV D) estão
+  implementados sobre o Admin API, protegidos pelo bearer do chamador.
 
 ### Por que um serviço separado?
 
@@ -77,6 +85,8 @@ cada equipe implementar seu próprio `fetch` para o provedor.
 | POST   | `/refresh`| Renova a sessão a partir do cookie.              |
 | POST   | `/logout` | Limpa o cookie de sessão.                        |
 
+As falhas do provedor são normalizadas no envelope de quatro chaves, sem vazar payload bruto, segredo ou stack trace. O status e o motivo do Keycloak aparecem como entradas de `error_stack` (`KC-<status>`), e a resposta final do gateway é `OA-<status>` — é o que permite distinguir um `500` de um `504` do lado do cliente.
+
 ### Roles (`/roles`)
 
 | Método | Rota                      | Descrição                                    |
@@ -90,8 +100,10 @@ cada equipe implementar seu próprio `fetch` para o provedor.
 | POST   | `/{id}/users/{userId}`    | Atribui o role a um usuário. → `204`         |
 | DELETE | `/{id}/users/{userId}`    | Remove a atribuição. → `204`                 |
 
-As rotas de roles exigem as credenciais administrativas (`KEYCLOAK_ADMIN*`); sem
-elas o serviço não consegue token de admin e responde `503`.
+As rotas de roles e de escrita de usuários exigem as credenciais do service account
+administrativo (`KEYCLOAK_ADMIN_CLIENT_ID` / `KEYCLOAK_ADMIN_CLIENT_SECRET`, via
+`grant_type=client_credentials`); sem elas o serviço não consegue token de admin e
+responde `503`.
 
 ### Usuários (`/users`)
 
@@ -113,8 +125,7 @@ elas o serviço não consegue token de admin e responde `503`.
 | `KEYCLOAK_REALM`                          | `constrsw`             | Realm da aplicação                   |
 | `KEYCLOAK_CLIENT_ID` / `_SECRET`          | `oauth` / `…`          | Cliente usado no login               |
 | `KEYCLOAK_TIMEOUT_MS`                     | `5000`                 | Timeout das chamadas ao Keycloak     |
-| `KEYCLOAK_ADMIN` / `_PASSWORD`            | `admin` / `a12345678`  | Credenciais administrativas          |
-| `KEYCLOAK_ADMIN_REALM` / `_CLIENT_ID`     | `constrsw` / `oauth-admin` | Realm e client administrativos    |
+| `KEYCLOAK_ADMIN_CLIENT_ID`                | `oauth-admin`          | Client do service account administrativo |
 | `KEYCLOAK_ADMIN_CLIENT_SECRET`            | `…`                    | Segredo do client administrativo     |
 | `SESSION_COOKIE_NAME`                     | `closed_cras_session`  | Nome do cookie de sessão             |
 | `COOKIE_SECURE` / `COOKIE_SAME_SITE`      | `false` / `lax`        | Flags do cookie                      |
@@ -151,17 +162,17 @@ npm install --legacy-peer-deps
 npm run start:dev
 ```
 
-O `.env.example` já traz `KEYCLOAK_ADMIN*`, mas os valores de conexão apontam
-para nomes internos de container. Para rodar localmente **contra o Keycloak do
-Compose**, ajuste no seu `.env`:
+O `.env.example` já traz as credenciais do service account (`KEYCLOAK_ADMIN_CLIENT_*`),
+mas os valores de conexão apontam para nomes internos de container. Para rodar
+localmente **contra o Keycloak do Compose**, ajuste no seu `.env`:
 
 ```dotenv
 KEYCLOAK_URL=http://localhost:8081
 KEYCLOAK_REALM=constrsw
 KEYCLOAK_CLIENT_ID=oauth
 KEYCLOAK_CLIENT_SECRET=wsNXUxaupU9X6jCncsn3rOEy6PDt7oJO
-KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=a12345678
+KEYCLOAK_ADMIN_CLIENT_ID=oauth-admin
+KEYCLOAK_ADMIN_CLIENT_SECRET=local-development-admin-secret
 ```
 
 ## Rodar os testes
@@ -221,8 +232,11 @@ O corpo de sucesso contém `token_type`, `access_token`, `expires_in`,
 ## Contratos
 
 - `contracts/identity-gateway.yaml`: fragmento OpenAPI das rotas de autenticação,
-  usuários e roles.
+  usuários e roles. **Parcial:** algumas rotas ainda não estão descritas.
 - `infrastructure/dev.local/services/keycloak/constrsw.json` (na raiz do repo):
-  realm importado pelo container do Keycloak.
+  realm importado pelo container do Keycloak. Traz o client `oauth-admin` (service
+  account com `manage-users` / `view-users` / `query-users` / `manage-realm`).
 - `keycloak/realm-closed-cras.json`: realm legado de exemplo; **não** é o que sobe
   em desenvolvimento (o realm ativo é `constrsw`).
+- `Planning/Rotas.md`: documento legado do enunciado; não é fonte executável e
+  contém decisões superadas.
