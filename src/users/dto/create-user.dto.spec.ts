@@ -7,7 +7,6 @@ import { ReplaceUserDto } from "./replace-user.dto";
 function createDto(overrides: Partial<CreateUserDto> = {}) {
   return Object.assign(new CreateUserDto(), {
     username: "ana.souza@pucrs.br",
-    email: "ana.souza@pucrs.br",
     "first-name": "Ana",
     "last-name": "Souza",
     password: "senha-segura",
@@ -16,7 +15,7 @@ function createDto(overrides: Partial<CreateUserDto> = {}) {
 }
 
 describe("CreateUserDto", () => {
-  it("accepts a complete user", async () => {
+  it("accepts username, password and names — there is no email field", async () => {
     await expect(validate(createDto())).resolves.toHaveLength(0);
   });
 
@@ -25,23 +24,24 @@ describe("CreateUserDto", () => {
     ["ana@pucrs", "domain without a dot"],
     [".ana@pucrs.br", "local part starting with a dot"],
     ["ana pucrs@pucrs.br", "whitespace in the local part"],
-  ])("rejects %s (%s)", async (email) => {
-    await expect(validate(createDto({ email }))).resolves.toEqual(
-      expect.arrayContaining([expect.objectContaining({ property: "email" })]),
+  ])("rejects username %s (%s)", async (username) => {
+    await expect(validate(createDto({ username }))).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: "username" }),
+      ]),
     );
   });
 
   it.each(["ana.souza@pucrs.br", "ana+turma1@aluno.pucrs.br", "a_b-c@x.co"])(
-    "accepts %s",
-    async (email) => {
-      await expect(validate(createDto({ email }))).resolves.toHaveLength(0);
+    "accepts username %s",
+    async (username) => {
+      await expect(validate(createDto({ username }))).resolves.toHaveLength(0);
     },
   );
 
   it("trims surrounding whitespace before validating", async () => {
     const dto = plainToInstance(CreateUserDto, {
       username: "  ana.souza@pucrs.br  ",
-      email: "  ana.souza@pucrs.br  ",
       "first-name": "  Ana  ",
       "last-name": "Souza",
       password: "senha-segura",
@@ -49,13 +49,12 @@ describe("CreateUserDto", () => {
 
     await expect(validate(dto)).resolves.toHaveLength(0);
     expect(dto["first-name"]).toBe("Ana");
-    expect(dto.email).toBe("ana.souza@pucrs.br");
+    expect(dto.username).toBe("ana.souza@pucrs.br");
   });
 
   it("rejects a whitespace-only name", async () => {
     const dto = plainToInstance(CreateUserDto, {
       username: "ana.souza@pucrs.br",
-      email: "ana.souza@pucrs.br",
       "first-name": "   ",
       "last-name": "Souza",
       password: "senha-segura",
@@ -69,9 +68,7 @@ describe("CreateUserDto", () => {
   });
 
   it("rejects a short password", async () => {
-    await expect(
-      validate(createDto({ password: "123" })),
-    ).resolves.toEqual(
+    await expect(validate(createDto({ password: "123" }))).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ property: "password" }),
       ]),
@@ -80,10 +77,9 @@ describe("CreateUserDto", () => {
 });
 
 describe("ReplaceUserDto", () => {
-  it("requires every field but enabled", async () => {
+  it("accepts username and names", async () => {
     const dto = Object.assign(new ReplaceUserDto(), {
       username: "ana.souza@pucrs.br",
-      email: "ana.souza@pucrs.br",
       "first-name": "Ana",
       "last-name": "Souza",
     });
@@ -91,9 +87,22 @@ describe("ReplaceUserDto", () => {
     await expect(validate(dto)).resolves.toHaveLength(0);
   });
 
+  it("rejects a non-email username", async () => {
+    const dto = Object.assign(new ReplaceUserDto(), {
+      username: "ana",
+      "first-name": "Ana",
+      "last-name": "Souza",
+    });
+
+    await expect(validate(dto)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: "username" }),
+      ]),
+    );
+  });
+
   it("rejects a missing username", async () => {
     const dto = Object.assign(new ReplaceUserDto(), {
-      email: "ana.souza@pucrs.br",
       "first-name": "Ana",
       "last-name": "Souza",
     });
@@ -119,7 +128,7 @@ describe("PatchUserDto", () => {
 
   it.each([
     ["password", { password: null }],
-    ["email", { email: null }],
+    ["username", { username: null }],
     ["firstName", { firstName: null }],
   ])("rejects an explicit null %s", async (property, body) => {
     // @IsOptional ignoraria o null e ele chegaria cru ao Keycloak.
@@ -130,11 +139,15 @@ describe("PatchUserDto", () => {
     );
   });
 
-  it("still validates the email when present", async () => {
-    const dto = Object.assign(new PatchUserDto(), { email: "ana@@pucrs.br" });
+  it("still validates username as an email when present", async () => {
+    const dto = Object.assign(new PatchUserDto(), {
+      username: "ana@@pucrs.br",
+    });
 
     await expect(validate(dto)).resolves.toEqual(
-      expect.arrayContaining([expect.objectContaining({ property: "email" })]),
+      expect.arrayContaining([
+        expect.objectContaining({ property: "username" }),
+      ]),
     );
   });
 });

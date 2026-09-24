@@ -50,12 +50,14 @@ o volume mantém a configuração.
   CRUD de roles é um proxy sobre a Admin API. Como realm roles não têm exclusão
   nativa, o `DELETE` é uma **exclusão lógica** (grava o atributo `deleted=true` no
   role); roles marcados somem das leituras.
-- **Erros são seguros.** A API responde JSON com apenas `error_code`,
-  `error_description`, `error_source` e `error_stack`. O status HTTP permanece
-  na resposta HTTP, e nunca devolvemos senha, token, segredo, payload do
-  Keycloak ou stack trace.
-- **As mutações de usuários usam o Admin API.** O gateway mantém o bearer recebido na superfície pública e usa o cliente administrativo para criar, atualizar, alterar senha e desabilitar usuários.
-- **Erros são seguros.** A API responde `application/json` no envelope acordado pelo grupo: `error_code`, `error_description`, `error_source` e `error_stack` (array de `{source, code, description}`).
+- **Erros são seguros.** A API responde `application/json` no envelope acordado
+  pelo grupo: `error_code`, `error_description`, `error_source` e `error_stack`
+  (array de `{ error_code, error_description, error_source }`, do upstream
+  `Keycloak` até o `OAuthAPI`). O status HTTP permanece na resposta HTTP, e nunca
+  devolvemos senha, token, segredo, payload do Keycloak ou stack trace.
+- **As mutações de usuários repassam o bearer recebido.** O gateway encaminha o
+  access token do chamador à Admin API — produzindo `401`/`403` reais — para
+  criar, atualizar, alterar senha e desabilitar usuários.
 
 ### Por que um serviço separado?
 
@@ -112,7 +114,7 @@ elas o serviço não consegue token de admin e responde `503`.
 | `KEYCLOAK_CLIENT_ID` / `_SECRET`          | `oauth` / `…`          | Cliente usado no login               |
 | `KEYCLOAK_TIMEOUT_MS`                     | `5000`                 | Timeout das chamadas ao Keycloak     |
 | `KEYCLOAK_ADMIN` / `_PASSWORD`            | `admin` / `a12345678`  | Credenciais administrativas          |
-| `KEYCLOAK_ADMIN_REALM` / `_CLIENT_ID`     | `master` / `oauth-admin` | Realm e client administrativos      |
+| `KEYCLOAK_ADMIN_REALM` / `_CLIENT_ID`     | `constrsw` / `oauth-admin` | Realm e client administrativos    |
 | `KEYCLOAK_ADMIN_CLIENT_SECRET`            | `…`                    | Segredo do client administrativo     |
 | `SESSION_COOKIE_NAME`                     | `closed_cras_session`  | Nome do cookie de sessão             |
 | `COOKIE_SECURE` / `COOKIE_SAME_SITE`      | `false` / `lax`        | Flags do cookie                      |
@@ -184,19 +186,23 @@ npm run build       # compila/verifica tipos
 
 ## Teste rápido
 
-Com o stack no ar (as rotas de roles não exigem login):
+Com o stack no ar, as rotas de roles exigem um `Authorization: Bearer <token>`
+(obtenha um token via `POST /login`; o serviço usa a service account
+`oauth-admin` internamente para falar com a Admin API):
 
 ```bash
 BASE=http://localhost:8181
+TOKEN="<access_token de POST /login>"
 
 # Criar um role → 201 com { id, name, description }
-curl -i -X POST $BASE/roles -H 'content-type: application/json' \
+curl -i -X POST $BASE/roles -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
   -d '{"name":"professor","description":"Docente"}'
 
 # Listar / buscar / excluir logicamente
-curl -s  $BASE/roles | jq
-curl -i -X DELETE $BASE/roles/<ID>   # 204
-curl -i $BASE/roles/<ID>             # 404 (some após a exclusão lógica)
+curl -s  $BASE/roles -H "Authorization: Bearer $TOKEN" | jq
+curl -i -X DELETE $BASE/roles/<ID> -H "Authorization: Bearer $TOKEN"   # 204
+curl -i $BASE/roles/<ID> -H "Authorization: Bearer $TOKEN"             # 404 (some após a exclusão lógica)
 ```
 
 O realm `constrsw` já vem com usuários (`admin@pucrs.br`, `coordinator@pucrs.br`,

@@ -52,7 +52,7 @@ export class UsersController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Cria um usuário" })
   @ApiCreatedResponse({ description: "Usuário criado; devolve o id." })
-  @ApiConflictResponse({ description: "Username ou e-mail já em uso." })
+  @ApiConflictResponse({ description: "Username já em uso." })
   @ApiUnauthorizedResponse({ description: "Access token inválido" })
   @ApiForbiddenResponse({ description: "Permissão insuficiente" })
   create(

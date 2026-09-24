@@ -7,7 +7,7 @@ import {
   MinLength,
   ValidateIf,
 } from "class-validator";
-import { RFC_5322_EMAIL, RFC_5322_MESSAGE } from "./rfc5322";
+import { RFC_5322_EMAIL, RFC_5322_USERNAME_MESSAGE } from "./rfc5322";
 import { Trim } from "./trim";
 
 /**
@@ -24,15 +24,9 @@ export class PatchUserDto {
   @Trim()
   @IsString({ message: "username deve ser texto" })
   @MinLength(1, { message: "username não pode ser vazio" })
+  @Matches(RFC_5322_EMAIL, { message: RFC_5322_USERNAME_MESSAGE })
   @MaxLength(255, { message: "username deve ter no máximo 255 caracteres" })
   username?: string;
-
-  @ApiPropertyOptional({ example: "ana.souza@pucrs.br" })
-  @ValidateIf((_object, value) => value !== undefined)
-  @Trim()
-  @IsString({ message: "email deve ser texto" })
-  @Matches(RFC_5322_EMAIL, { message: RFC_5322_MESSAGE })
-  email?: string;
 
   @ApiPropertyOptional({ example: "Ana" })
   @ValidateIf((_object, value) => value !== undefined)

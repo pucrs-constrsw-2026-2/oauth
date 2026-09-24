@@ -34,7 +34,6 @@ describe("UsersController", () => {
     const { users, controller } = createController();
     const input = {
       username: "ana.souza@pucrs.br",
-      email: "ana.souza@pucrs.br",
       firstName: "Ana",
       lastName: "Souza",
       password: "senha-segura",

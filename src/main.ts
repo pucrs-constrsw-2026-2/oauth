@@ -4,13 +4,13 @@ import { ConfigService } from "@nestjs/config";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
-import { ErrorResponseFilter } from "./common/error-response.filter";
+import { ProblemDetailsFilter } from "./common/problem-details.filter";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalFilters(new ErrorResponseFilter());
+  app.useGlobalFilters(new ProblemDetailsFilter());
 
   const config = app.get(ConfigService);
   const swaggerConfig = new DocumentBuilder()
