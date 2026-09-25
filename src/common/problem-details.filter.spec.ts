@@ -1,8 +1,14 @@
-import { ArgumentsHost, BadRequestException } from "@nestjs/common";
+import { ArgumentsHost, BadRequestException, Logger } from "@nestjs/common";
 import { KeycloakDependencyError } from "./errors";
 import { ProblemDetailsFilter } from "./problem-details.filter";
 
 describe("ProblemDetailsFilter", () => {
+  beforeEach(() => {
+    // O filtro loga 5xx de propósito; aqui os 503/500 são casos de teste,
+    // então o log esperado não deve poluir a saída da suíte.
+    jest.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
+  });
+
   function createHost() {
     const response = {
       status: jest.fn().mockReturnThis(),
