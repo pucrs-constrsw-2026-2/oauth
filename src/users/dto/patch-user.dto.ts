@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import {
-  IsBoolean,
   IsString,
   Matches,
   MaxLength,
@@ -17,6 +16,9 @@ import { Trim } from "./trim";
  * `@ValidateIf` no lugar de `@IsOptional` de propósito: `@IsOptional` também
  * ignora `null`, então `{"password": null}` escaparia do `@MinLength` e
  * chegaria cru ao Keycloak.
+ *
+ * Sem `enabled`: como em `CreateUserDto`/`ReplaceUserDto`, o estado de
+ * habilitação é server-side e não é aceito como entrada.
  */
 export class PatchUserDto {
   @ApiPropertyOptional({ example: "ana.souza@pucrs.br" })
@@ -31,27 +33,22 @@ export class PatchUserDto {
   @ApiPropertyOptional({ example: "Ana" })
   @ValidateIf((_object, value) => value !== undefined)
   @Trim()
-  @IsString({ message: "firstName deve ser texto" })
-  @MinLength(1, { message: "firstName não pode ser vazio" })
-  @MaxLength(255, { message: "firstName deve ter no máximo 255 caracteres" })
-  firstName?: string;
+  @IsString({ message: "first-name deve ser texto" })
+  @MinLength(1, { message: "first-name não pode ser vazio" })
+  @MaxLength(255, { message: "first-name deve ter no máximo 255 caracteres" })
+  "first-name"?: string;
 
   @ApiPropertyOptional({ example: "Souza" })
   @ValidateIf((_object, value) => value !== undefined)
   @Trim()
-  @IsString({ message: "lastName deve ser texto" })
-  @MinLength(1, { message: "lastName não pode ser vazio" })
-  @MaxLength(255, { message: "lastName deve ter no máximo 255 caracteres" })
-  lastName?: string;
+  @IsString({ message: "last-name deve ser texto" })
+  @MinLength(1, { message: "last-name não pode ser vazio" })
+  @MaxLength(255, { message: "last-name deve ter no máximo 255 caracteres" })
+  "last-name"?: string;
 
   @ApiPropertyOptional({ example: "senha-nova", minLength: 6 })
   @ValidateIf((_object, value) => value !== undefined)
   @IsString({ message: "password deve ser texto" })
   @MinLength(6, { message: "password deve ter ao menos 6 caracteres" })
   password?: string;
-
-  @ApiPropertyOptional()
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsBoolean({ message: "enabled deve ser booleano" })
-  enabled?: boolean;
 }

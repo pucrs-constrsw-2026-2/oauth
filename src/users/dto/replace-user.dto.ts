@@ -1,19 +1,16 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import {
-  IsBoolean,
-  IsString,
-  Matches,
-  MaxLength,
-  MinLength,
-  ValidateIf,
-} from "class-validator";
-import { Transform } from "class-transformer";
+import { ApiProperty } from "@nestjs/swagger";
+import { IsString, Matches, MaxLength, MinLength } from "class-validator";
 import { RFC_5322_EMAIL, RFC_5322_USERNAME_MESSAGE } from "./rfc5322";
 import { Trim } from "./trim";
 
 /**
  * Substituição completa. Sem `password`: o Admin API só honra `credentials` na
  * criação — troca de senha é `PATCH`, que a roteia para `reset-password`.
+ *
+ * Sem `enabled`: o estado de habilitação é server-side (o usuário nasce
+ * habilitado e `DELETE /users/:id` o desabilita). O `enabled` é omitido do PUT,
+ * então o Admin API preserva o valor atual — um PUT de rotina não reativa um
+ * usuário excluído logicamente.
  */
 export class ReplaceUserDto {
   @ApiProperty({ example: "ana.souza@pucrs.br" })
@@ -25,7 +22,6 @@ export class ReplaceUserDto {
   username!: string;
 
   @ApiProperty({ example: "Ana" })
-  @Transform(({ value, obj }) => value ?? obj?.firstName)
   @Trim()
   @IsString({ message: "first-name é obrigatório" })
   @MinLength(1, { message: "first-name não pode ser vazio" })
@@ -33,19 +29,9 @@ export class ReplaceUserDto {
   "first-name"!: string;
 
   @ApiProperty({ example: "Souza" })
-  @Transform(({ value, obj }) => value ?? obj?.lastName)
   @Trim()
   @IsString({ message: "last-name é obrigatório" })
   @MinLength(1, { message: "last-name não pode ser vazio" })
   @MaxLength(255, { message: "last-name deve ter no máximo 255 caracteres" })
   "last-name"!: string;
-
-  @ApiPropertyOptional({
-    default: true,
-    description:
-      "Ausente equivale a true — um PUT de rotina reabilita um usuário excluído logicamente.",
-  })
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsBoolean({ message: "enabled deve ser booleano" })
-  enabled?: boolean;
 }

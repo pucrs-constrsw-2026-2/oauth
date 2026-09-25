@@ -50,7 +50,8 @@ export class UsersService {
       email: input.username,
       firstName: input["first-name"],
       lastName: input["last-name"],
-      enabled: input.enabled ?? true,
+      // Novo usuário nasce habilitado; `enabled` não é entrada do request.
+      enabled: true,
       emailVerified: false,
       credentials: [
         { type: "password", value: input.password, temporary: false },
@@ -80,7 +81,8 @@ export class UsersService {
         email: input.username,
         firstName: input["first-name"],
         lastName: input["last-name"],
-        enabled: input.enabled ?? true,
+        // `enabled` é omitido de propósito: o Admin API preserva o estado
+        // atual, então um PUT de rotina não reativa um usuário desabilitado.
         emailVerified: false,
       },
       accessToken,
@@ -92,12 +94,13 @@ export class UsersService {
     id: string,
     input: PatchUserDto,
   ): Promise<void> {
-    const { password, ...rest } = input;
-    const fields = Object.fromEntries(
-      Object.entries(rest).filter(
-        ([, value]) => value !== undefined && value !== null,
-      ),
-    ) as KeycloakUserRepresentation;
+    const { password, username } = input;
+    // A API pública usa `first-name`/`last-name`; o Keycloak espera
+    // `firstName`/`lastName`.
+    const fields: KeycloakUserRepresentation = {};
+    if (username !== undefined) fields.username = username;
+    if (input["first-name"] !== undefined) fields.firstName = input["first-name"];
+    if (input["last-name"] !== undefined) fields.lastName = input["last-name"];
 
     if (password === undefined && Object.keys(fields).length === 0) {
       throw new ValidationError(

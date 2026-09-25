@@ -34,20 +34,20 @@ describe("UsersController", () => {
     const { users, controller } = createController();
     const input = {
       username: "ana.souza@pucrs.br",
-      firstName: "Ana",
-      lastName: "Souza",
+      "first-name": "Ana",
+      "last-name": "Souza",
       password: "senha-segura",
     };
 
     await controller.create("Bearer token", input as never);
     await controller.update("Bearer token", "u-9", input as never);
-    await controller.patch("Bearer token", "u-9", { firstName: "Aninha" });
+    await controller.patch("Bearer token", "u-9", { "first-name": "Aninha" });
     await controller.delete("Bearer token", "u-9");
 
     expect(users.create).toHaveBeenCalledWith("token", input);
     expect(users.update).toHaveBeenCalledWith("token", "u-9", input);
     expect(users.patch).toHaveBeenCalledWith("token", "u-9", {
-      firstName: "Aninha",
+      "first-name": "Aninha",
     });
     expect(users.delete).toHaveBeenCalledWith("token", "u-9");
   });

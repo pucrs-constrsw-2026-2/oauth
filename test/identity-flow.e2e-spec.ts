@@ -235,7 +235,6 @@ describe("Identity gateway — fluxo completo (e2e)", () => {
           username: "ana.souza@pucrs.br",
           "first-name": "Ana Maria",
           "last-name": "Souza",
-          enabled: true,
         })
         .expect(200);
 
@@ -248,7 +247,7 @@ describe("Identity gateway — fluxo completo (e2e)", () => {
       await request(server())
         .patch(`/users/${created.id}`)
         .set(auth(token))
-        .send({ firstName: "Ana", lastName: "S." })
+        .send({ "first-name": "Ana", "last-name": "S." })
         .expect(200);
 
       current = await request(server())
@@ -257,6 +256,43 @@ describe("Identity gateway — fluxo completo (e2e)", () => {
         .expect(200);
       expect(current.body["first-name"]).toBe("Ana");
       expect(current.body["last-name"]).toBe("S.");
+    });
+
+    it("ignora enabled no POST: o usuário nasce habilitado", async () => {
+      const created = await createUser(token, { enabled: false });
+
+      expect(created.enabled).toBe(true);
+
+      const read = await request(server())
+        .get(`/users/${created.id}`)
+        .set(auth(token))
+        .expect(200);
+      expect(read.body.enabled).toBe(true);
+    });
+
+    it("PUT não reativa um usuário desabilitado", async () => {
+      const created = await createUser(token);
+
+      await request(server())
+        .delete(`/users/${created.id}`)
+        .set(auth(token))
+        .expect(204);
+
+      await request(server())
+        .put(`/users/${created.id}`)
+        .set(auth(token))
+        .send({
+          username: "ana.souza@pucrs.br",
+          "first-name": "Ana Maria",
+          "last-name": "Souza",
+        })
+        .expect(200);
+
+      const read = await request(server())
+        .get(`/users/${created.id}`)
+        .set(auth(token))
+        .expect(200);
+      expect(read.body.enabled).toBe(false);
     });
 
     it("recusa PATCH sem nenhum campo com 400", async () => {

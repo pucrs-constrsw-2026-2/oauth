@@ -1,13 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import {
-  IsBoolean,
-  IsString,
-  Matches,
-  MaxLength,
-  MinLength,
-  ValidateIf,
-} from "class-validator";
-import { Transform } from "class-transformer";
+import { ApiProperty } from "@nestjs/swagger";
+import { IsString, Matches, MaxLength, MinLength } from "class-validator";
 import { RFC_5322_EMAIL, RFC_5322_USERNAME_MESSAGE } from "./rfc5322";
 import { Trim } from "./trim";
 
@@ -21,7 +13,6 @@ export class CreateUserDto {
   username!: string;
 
   @ApiProperty({ example: "Ana" })
-  @Transform(({ value, obj }) => value ?? obj?.firstName)
   @Trim()
   @IsString({ message: "first-name é obrigatório" })
   @MinLength(1, { message: "first-name não pode ser vazio" })
@@ -29,7 +20,6 @@ export class CreateUserDto {
   "first-name"!: string;
 
   @ApiProperty({ example: "Souza" })
-  @Transform(({ value, obj }) => value ?? obj?.lastName)
   @Trim()
   @IsString({ message: "last-name é obrigatório" })
   @MinLength(1, { message: "last-name não pode ser vazio" })
@@ -40,9 +30,4 @@ export class CreateUserDto {
   @IsString({ message: "password é obrigatório" })
   @MinLength(6, { message: "password deve ter ao menos 6 caracteres" })
   password!: string;
-
-  @ApiPropertyOptional({ default: true })
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsBoolean({ message: "enabled deve ser booleano" })
-  enabled?: boolean;
 }

@@ -25,14 +25,6 @@ interface RawResponse {
   body: unknown;
 }
 
-interface CachedToken {
-  value: string;
-  expiresAt: number;
-}
-
-/** Repetir um POST pode duplicar recurso — só relançamos o que é idempotente. */
-const RETRYABLE_METHODS: readonly AdminMethod[] = ["GET", "PUT", "DELETE"];
-
 /**
  * Dono único do token administrativo do realm.
  *
@@ -45,19 +37,11 @@ const RETRYABLE_METHODS: readonly AdminMethod[] = ["GET", "PUT", "DELETE"];
  */
 @Injectable()
 export class KeycloakAdminClient {
-  /** Renova um pouco antes do vencimento para não correr com o relógio. */
-  private static readonly EXPIRY_MARGIN_MS = 5_000;
-  /** Piso de validade: evita refetch a cada request se o IdP devolver TTL curto. */
-  private static readonly MIN_CACHE_MS = 1_000;
-
   private readonly baseUrl: string;
   private readonly realm: string;
   private readonly timeoutMs: number;
   private readonly clientId: string;
   private readonly clientSecret: string;
-  private cachedToken?: CachedToken;
-  /** Uma única busca de token em voo — sem isso um cold start vira estouro. */
-  private pendingToken?: Promise<string>;
 
   constructor(private readonly config: ConfigService) {
     this.baseUrl = this.config
@@ -97,8 +81,8 @@ export class KeycloakAdminClient {
 
   /**
    * `path` é relativo ao realm — `/users`, `/users/{id}/reset-password`.
-   * Um `401` gasta a única tentativa de retry: o token pode ter sido revogado
-   * antes de vencer, e nesse caso um token novo resolve.
+   * Sem token do chamador, obtém um token de service account novo a cada
+   * chamada (o enunciado não pede cache nem retry).
    */
   async request<T>(
     method: AdminMethod,
@@ -106,33 +90,8 @@ export class KeycloakAdminClient {
     body?: unknown,
     accessToken?: string,
   ): Promise<AdminResponse<T>> {
-    const used = accessToken ?? (await this.token());
-    const first = await this.send(method, path, body, used);
-    if (
-      accessToken ||
-      first.status !== 401 ||
-      !RETRYABLE_METHODS.includes(method)
-    ) {
-      return this.translate<T>(first);
-    }
-
-    // Só descarta o token que esta chamada usou: outra pode já ter renovado.
-    if (this.cachedToken?.value === used) this.cachedToken = undefined;
-    const retry = await this.send(method, path, body, await this.token());
-    return this.translate<T>(retry);
-  }
-
-  private token(): Promise<string> {
-    const cached = this.cachedToken;
-    if (cached && cached.expiresAt > Date.now()) {
-      return Promise.resolve(cached.value);
-    }
-    if (!this.pendingToken) {
-      this.pendingToken = this.fetchToken().finally(() => {
-        this.pendingToken = undefined;
-      });
-    }
-    return this.pendingToken;
+    const used = accessToken ?? (await this.fetchToken());
+    return this.translate<T>(await this.send(method, path, body, used));
   }
 
   private async fetchToken(): Promise<string> {
@@ -162,7 +121,7 @@ export class KeycloakAdminClient {
 
     const payload =
       typeof response.body === "object" && response.body !== null
-        ? (response.body as { access_token?: unknown; expires_in?: unknown })
+        ? (response.body as { access_token?: unknown })
         : {};
     if (typeof payload.access_token !== "string" || !payload.access_token) {
       throw new KeycloakError(
@@ -171,18 +130,7 @@ export class KeycloakAdminClient {
       );
     }
 
-    const expiresIn =
-      typeof payload.expires_in === "number" ? payload.expires_in : 60;
-    this.cachedToken = {
-      value: payload.access_token,
-      expiresAt:
-        Date.now() +
-        Math.max(
-          expiresIn * 1000 - KeycloakAdminClient.EXPIRY_MARGIN_MS,
-          KeycloakAdminClient.MIN_CACHE_MS,
-        ),
-    };
-    return this.cachedToken.value;
+    return payload.access_token;
   }
 
   private send(

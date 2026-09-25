@@ -117,7 +117,7 @@ describe("ReplaceUserDto", () => {
 
 describe("PatchUserDto", () => {
   it("accepts a single field", async () => {
-    const dto = Object.assign(new PatchUserDto(), { firstName: "Ana" });
+    const dto = Object.assign(new PatchUserDto(), { "first-name": "Ana" });
 
     await expect(validate(dto)).resolves.toHaveLength(0);
   });
@@ -129,7 +129,7 @@ describe("PatchUserDto", () => {
   it.each([
     ["password", { password: null }],
     ["username", { username: null }],
-    ["firstName", { firstName: null }],
+    ["first-name", { "first-name": null }],
   ])("rejects an explicit null %s", async (property, body) => {
     // @IsOptional ignoraria o null e ele chegaria cru ao Keycloak.
     const dto = Object.assign(new PatchUserDto(), body);

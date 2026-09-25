@@ -46,9 +46,10 @@ o volume mantém a configuração.
 - **`client_credentials` não autentica pessoas.** Esse fluxo é o do **Admin API**:
   o client de service account `oauth-admin` (`KEYCLOAK_ADMIN_CLIENT_ID` /
   `KEYCLOAK_ADMIN_CLIENT_SECRET`) obtém o token administrativo usado pelas rotas de
-  CRUD de usuários e de roles. O login de usuário continua em `grant_type=password`
-  no cliente confidencial de `KEYCLOAK_CLIENT_ID`. Como `client_credentials`
-  identifica uma aplicação, não uma pessoa, os dois fluxos ficam separados.
+  roles (as rotas de usuários repassam o bearer do chamador). O login de usuário
+  continua em `grant_type=password` no cliente confidencial de `KEYCLOAK_CLIENT_ID`.
+  Como `client_credentials` identifica uma aplicação, não uma pessoa, os dois fluxos
+  ficam separados.
 - **Roles são realm roles do Keycloak.** O serviço não mantém banco próprio: o CRUD
   de roles é um proxy sobre a Admin API, através do mesmo cliente de service
   account. Como realm roles não têm exclusão nativa, o `DELETE` é uma **exclusão
@@ -63,6 +64,11 @@ o volume mantém a configuração.
 - **As mutações de usuários repassam o bearer recebido.** O gateway encaminha o
   access token do chamador à Admin API — produzindo `401`/`403` reais — para
   criar, atualizar, alterar senha e desabilitar usuários.
+- **`enabled` é server-side.** `enabled` aparece só na resposta: novos usuários
+  nascem habilitados e o `DELETE` desabilita. `create`/`PUT`/`PATCH` não aceitam
+  `enabled` como entrada, e o `PUT` omite o campo ao Keycloak — assim uma
+  atualização de rotina não reativa um usuário excluído logicamente. Os atributos
+  de nome seguem `first-name`/`last-name` em todas as rotas de usuário.
 - **A escrita de usuários e o CRUD de roles moram aqui.** `POST/PUT/PATCH/DELETE
   /users` (trilha DEV B) e `/roles` + role-mapping (trilha DEV D) estão
   implementados sobre o Admin API, protegidos pelo bearer do chamador.
@@ -112,7 +118,7 @@ responde `503`.
 | POST | `/` | Cria um usuário e retorna o `id` do header `Location`. → `201` |
 | GET | `/` | Lista usuários; aceita `?enabled=true|false`. |
 | GET | `/{id}` | Recupera um usuário. |
-| PUT | `/{id}` | Atualiza os dados do usuário. → `200` |
+| PUT | `/{id}` | Atualiza os dados do usuário (não altera `enabled`). → `200` |
 | PATCH | `/{id}` | Atualiza parcialmente o usuário ou sua senha. → `200` |
 | DELETE | `/{id}` | Desabilita logicamente o usuário. → `204` |
 

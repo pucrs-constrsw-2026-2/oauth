@@ -164,7 +164,6 @@ describe("UsersService", () => {
         email: newUser.username,
         firstName: newUser["first-name"],
         lastName: newUser["last-name"],
-        enabled: true,
         emailVerified: false,
       },
       "token",
@@ -176,7 +175,7 @@ describe("UsersService", () => {
     const service = new UsersService(undefined as never, admin as never);
 
     await service.patch("token", "u-9", {
-      firstName: "Aninha",
+      "first-name": "Aninha",
       password: "senha-nova",
     });
 
