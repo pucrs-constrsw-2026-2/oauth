@@ -16,3 +16,10 @@ process.env.COOKIE_SECURE = "false";
 process.env.COOKIE_SAME_SITE = "lax";
 // OpenTelemetry never starts in tests (AppModule doesn't import tracing), but be explicit.
 process.env.OTEL_ENABLED = "false";
+
+// Log de início por teste: o nome completo vem do estado do Jest, então o
+// terminal mostra exatamente qual caso está rodando antes de cada asserção.
+beforeEach(() => {
+  const name = expect.getState().currentTestName ?? "(teste sem nome)";
+  process.stdout.write(`\n[E2E] ▶ Iniciando: ${name}\n`);
+});

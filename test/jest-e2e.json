@@ -13,5 +13,7 @@
     ]
   },
   "setupFilesAfterEnv": ["<rootDir>/setup-e2e.ts"],
+  "reporters": ["default", "<rootDir>/reporters/e2e-reporter.js"],
+  "verbose": true,
   "clearMocks": true
 }
