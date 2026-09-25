@@ -7,5 +7,5 @@
 export const RFC_5322_EMAIL =
   /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/;
 
-export const RFC_5322_MESSAGE =
-  "email deve ser um endereço válido conforme a RFC 5322";
+export const RFC_5322_USERNAME_MESSAGE =
+  "username deve ser um endereço de e-mail válido conforme a RFC 5322";

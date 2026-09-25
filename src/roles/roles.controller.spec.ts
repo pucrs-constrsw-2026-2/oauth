@@ -7,7 +7,7 @@ function createController() {
     findOne: jest.fn(),
     update: jest.fn(),
     patch: jest.fn(),
-    remove: jest.fn(),
+    delete: jest.fn(),
     assignToUser: jest.fn(),
     removeFromUser: jest.fn(),
   };
@@ -19,9 +19,10 @@ describe("RolesController", () => {
     const { controller, roles } = createController();
     roles.create.mockResolvedValue({ id: "r1", name: "professor" });
 
-    await expect(
-      controller.create({ name: "professor" }),
-    ).resolves.toEqual({ id: "r1", name: "professor" });
+    await expect(controller.create("Bearer token", { name: "professor" })).resolves.toEqual({
+      id: "r1",
+      name: "professor",
+    });
     expect(roles.create).toHaveBeenCalledWith({ name: "professor" });
   });
 
@@ -29,7 +30,7 @@ describe("RolesController", () => {
     const { controller, roles } = createController();
     roles.findAll.mockResolvedValue([{ id: "r1", name: "professor" }]);
 
-    await expect(controller.findAll()).resolves.toEqual([
+    await expect(controller.findAll("Bearer token")).resolves.toEqual([
       { id: "r1", name: "professor" },
     ]);
   });
@@ -38,7 +39,7 @@ describe("RolesController", () => {
     const { controller, roles } = createController();
     roles.findOne.mockResolvedValue({ id: "r1", name: "professor" });
 
-    await controller.findOne("r1");
+    await controller.findOne("Bearer token", "r1");
 
     expect(roles.findOne).toHaveBeenCalledWith("r1");
   });
@@ -46,7 +47,7 @@ describe("RolesController", () => {
   it("delegates full update to the service", async () => {
     const { controller, roles } = createController();
 
-    await controller.update("r1", { name: "novo" });
+    await controller.update("Bearer token", "r1", { name: "novo" });
 
     expect(roles.update).toHaveBeenCalledWith("r1", { name: "novo" });
   });
@@ -54,7 +55,7 @@ describe("RolesController", () => {
   it("delegates partial update to the service", async () => {
     const { controller, roles } = createController();
 
-    await controller.patch("r1", { description: "d" });
+    await controller.patch("Bearer token", "r1", { description: "d" });
 
     expect(roles.patch).toHaveBeenCalledWith("r1", { description: "d" });
   });
@@ -62,15 +63,15 @@ describe("RolesController", () => {
   it("delegates logical deletion to the service", async () => {
     const { controller, roles } = createController();
 
-    await controller.remove("r1");
+    await controller.delete("Bearer token", "r1");
 
-    expect(roles.remove).toHaveBeenCalledWith("r1");
+    expect(roles.delete).toHaveBeenCalledWith("r1");
   });
 
   it("delegates role assignment to the service", async () => {
     const { controller, roles } = createController();
 
-    await controller.assign("r1", "user-1");
+    await controller.assign("Bearer token", "r1", "user-1");
 
     expect(roles.assignToUser).toHaveBeenCalledWith("r1", "user-1");
   });
@@ -78,7 +79,7 @@ describe("RolesController", () => {
   it("delegates role unassignment to the service", async () => {
     const { controller, roles } = createController();
 
-    await controller.unassign("r1", "user-1");
+    await controller.unassign("Bearer token", "r1", "user-1");
 
     expect(roles.removeFromUser).toHaveBeenCalledWith("r1", "user-1");
   });

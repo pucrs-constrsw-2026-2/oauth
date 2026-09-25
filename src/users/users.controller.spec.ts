@@ -1,53 +1,73 @@
+import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { UsersController } from "./users.controller";
 
+function createController() {
+  const users = {
+    list: jest.fn().mockResolvedValue([]),
+    get: jest.fn().mockResolvedValue({ id: "user-1" }),
+    create: jest.fn().mockResolvedValue({ id: "u-9" }),
+    update: jest.fn().mockResolvedValue(undefined),
+    patch: jest.fn().mockResolvedValue(undefined),
+    delete: jest.fn().mockResolvedValue(undefined),
+  };
+  return { users, controller: new UsersController(users as never) };
+}
+
 describe("UsersController", () => {
-  function createController() {
-    const users = {
-      create: jest.fn().mockResolvedValue({ id: "u-9" }),
-      replace: jest.fn().mockResolvedValue(undefined),
-      patch: jest.fn().mockResolvedValue(undefined),
-      deactivate: jest.fn().mockResolvedValue(undefined),
+  it("passes the bearer token and enabled filter to the service", async () => {
+    const { users, controller } = createController();
+
+    await controller.list("Bearer access-token", true);
+
+    expect(users.list).toHaveBeenCalledWith("access-token", true);
+  });
+
+  it("gets a user by id with the bearer token", async () => {
+    const { users, controller } = createController();
+
+    await controller.get("bearer access-token", "user-1");
+
+    expect(users.get).toHaveBeenCalledWith("access-token", "user-1");
+  });
+
+  it("delegates user mutations with the bearer token", async () => {
+    const { users, controller } = createController();
+    const input = {
+      username: "ana.souza@pucrs.br",
+      "first-name": "Ana",
+      "last-name": "Souza",
+      password: "senha-segura",
     };
 
-    return { users, controller: new UsersController(users as never) };
-  }
+    await controller.create("Bearer token", input as never);
+    await controller.update("Bearer token", "u-9", input as never);
+    await controller.patch("Bearer token", "u-9", { "first-name": "Aninha" });
+    await controller.delete("Bearer token", "u-9");
 
-  const body = {
-    username: "ana.souza@pucrs.br",
-    email: "ana.souza@pucrs.br",
-    firstName: "Ana",
-    lastName: "Souza",
-    password: "senha-segura",
-  };
-
-  it("returns the created id", async () => {
-    const { users, controller } = createController();
-
-    await expect(controller.create(body)).resolves.toEqual({ id: "u-9" });
-    expect(users.create).toHaveBeenCalledWith(body);
+    expect(users.create).toHaveBeenCalledWith("token", input);
+    expect(users.update).toHaveBeenCalledWith("token", "u-9", input);
+    expect(users.patch).toHaveBeenCalledWith("token", "u-9", {
+      "first-name": "Aninha",
+    });
+    expect(users.delete).toHaveBeenCalledWith("token", "u-9");
   });
 
-  it("delegates a full replace", async () => {
-    const { users, controller } = createController();
-    const { password: _password, ...replacement } = body;
+  it.each([undefined, "Basic credentials", "Bearer"])(
+    "rejects malformed authorization header: %s",
+    (authorization) => {
+      const { controller } = createController();
 
-    await expect(controller.replace("u-9", replacement)).resolves.toBeUndefined();
-    expect(users.replace).toHaveBeenCalledWith("u-9", replacement);
-  });
+      expect(() => controller.list(authorization)).toThrow(
+        UnauthorizedException,
+      );
+    },
+  );
 
-  it("delegates a partial change", async () => {
-    const { users, controller } = createController();
+  it("rejects a missing user id", () => {
+    const { controller } = createController();
 
-    await expect(
-      controller.patch("u-9", { firstName: "Aninha" }),
-    ).resolves.toBeUndefined();
-    expect(users.patch).toHaveBeenCalledWith("u-9", { firstName: "Aninha" });
-  });
-
-  it("maps DELETE to the logical deactivation", async () => {
-    const { users, controller } = createController();
-
-    await expect(controller.remove("u-9")).resolves.toBeUndefined();
-    expect(users.deactivate).toHaveBeenCalledWith("u-9");
+    expect(() => controller.get("Bearer token", undefined)).toThrow(
+      BadRequestException,
+    );
   });
 });

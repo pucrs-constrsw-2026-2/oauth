@@ -78,58 +78,32 @@ describe("KeycloakAdminClient", () => {
     ).toBe("Bearer admin-token");
   });
 
-  it("reuses the cached token across calls", async () => {
-    const fetchMock = mockFetch(tokenResponse(), respond(204), respond(204));
-    const client = createClient();
-
-    await client.put("/users/u-1", { enabled: false });
-    await client.put("/users/u-2", { enabled: false });
-
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it("refetches the token once the cached one has expired", async () => {
+  it("obtains a fresh admin token on every call", async () => {
     const fetchMock = mockFetch(
-      tokenResponse("first", 60),
+      tokenResponse("first"),
       respond(204),
-      tokenResponse("second", 60),
+      tokenResponse("second"),
       respond(204),
     );
     const client = createClient();
 
     await client.put("/users/u-1", { enabled: false });
-    // 60s de TTL menos a margem de 5s: 56s adiante o cache já venceu.
-    jest.spyOn(Date, "now").mockReturnValue(Date.now() + 56_000);
     await client.put("/users/u-2", { enabled: false });
 
     expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/token");
+    expect(String(fetchMock.mock.calls[2][0])).toContain("/token");
     expect(
       (fetchMock.mock.calls[3][1]?.headers as Record<string, string>)
         .authorization,
     ).toBe("Bearer second");
   });
 
-  it("keeps a short-lived token cached instead of refetching every call", async () => {
-    // expires_in menor que a margem daria expiresAt no passado — e um refetch
-    // por requisição. O piso de cache evita isso.
-    const fetchMock = mockFetch(
-      tokenResponse("short", 1),
-      respond(204),
-      respond(204),
-    );
-    const client = createClient();
-
-    await client.put("/users/u-1", { enabled: false });
-    await client.put("/users/u-2", { enabled: false });
-
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it("does not retry a POST after a 401 — it could duplicate the user", async () => {
+  it("translates a 401 from the admin API without retrying", async () => {
     const fetchMock = mockFetch(tokenResponse(), respond(401));
 
     await expect(createClient().post("/users", {})).rejects.toMatchObject({
-      status: 502,
+      status: 401,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -198,33 +172,6 @@ describe("KeycloakAdminClient", () => {
     });
   });
 
-  it("retries once with a fresh token when the admin API answers 401", async () => {
-    const fetchMock = mockFetch(
-      tokenResponse("stale"),
-      respond(401),
-      tokenResponse("fresh"),
-      respond(204),
-    );
-
-    await expect(
-      createClient().put("/users/u-1", { enabled: false }),
-    ).resolves.toMatchObject({ status: 204 });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-  });
-
-  it("gives up after a single retry", async () => {
-    mockFetch(
-      tokenResponse("stale"),
-      respond(401),
-      tokenResponse("fresh"),
-      respond(401),
-    );
-
-    await expect(
-      createClient().put("/users/u-1", { enabled: false }),
-    ).rejects.toBeInstanceOf(KeycloakError);
-  });
-
   it("returns the response headers so the caller can read Location", async () => {
     mockFetch(
       tokenResponse(),
@@ -250,6 +197,17 @@ describe("KeycloakAdminClient", () => {
     await expect(createClient().post("/users", {})).rejects.toBeInstanceOf(
       expected,
     );
+  });
+
+  it("preserves forbidden status from the admin API", async () => {
+    mockFetch(tokenResponse(), respond(403, { error: "forbidden" }));
+
+    await expect(createClient().post("/users", {})).rejects.toMatchObject({
+      status: 403,
+      code: "OA-403",
+      source: "keycloak-admin",
+      upstreamStatus: 403,
+    });
   });
 
   it("answers 503 when the admin API is unreachable", async () => {

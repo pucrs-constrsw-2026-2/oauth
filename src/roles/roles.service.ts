@@ -86,7 +86,7 @@ export class RolesService {
     return this.toResponse(await this.getRoleById(id));
   }
 
-  async remove(id: string): Promise<void> {
+  async delete(id: string): Promise<void> {
     const role = await this.getActiveRole(id);
     await this.admin.put(this.roleByIdPath(id), {
       ...role,

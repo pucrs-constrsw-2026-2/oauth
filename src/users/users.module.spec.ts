@@ -27,6 +27,8 @@ describe("UsersModule wiring", () => {
             () => ({
               KEYCLOAK_URL: "http://keycloak:8080",
               KEYCLOAK_REALM: "closed-cras",
+              KEYCLOAK_CLIENT_ID: "oauth",
+              KEYCLOAK_CLIENT_SECRET: "client-secret",
               KEYCLOAK_TIMEOUT_MS: 5000,
               KEYCLOAK_ADMIN_CLIENT_ID: "oauth-admin",
               KEYCLOAK_ADMIN_CLIENT_SECRET: "admin-secret",
@@ -48,17 +50,15 @@ describe("UsersModule wiring", () => {
     );
   });
 
-  it("mounts the controller under v1/users", () => {
-    expect(Reflect.getMetadata(PATH_METADATA, UsersController)).toBe(
-      "v1/users",
-    );
+  it("mounts the controller under users", () => {
+    expect(Reflect.getMetadata(PATH_METADATA, UsersController)).toBe("users");
   });
 
   it.each([
     ["create", RequestMethod.POST, "/", 201],
-    ["replace", RequestMethod.PUT, ":id", 204],
-    ["patch", RequestMethod.PATCH, ":id", 204],
-    ["remove", RequestMethod.DELETE, ":id", 204],
+    ["update", RequestMethod.PUT, ":id", 200],
+    ["patch", RequestMethod.PATCH, ":id", 200],
+    ["delete", RequestMethod.DELETE, ":id", 204],
   ])("maps %s to its verb, path and status", (handler, verb, path, status) => {
     const target = (
       UsersController.prototype as unknown as Record<string, () => unknown>

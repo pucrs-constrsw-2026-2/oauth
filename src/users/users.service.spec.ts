@@ -1,8 +1,11 @@
-import { ValidationError } from "../common/errors";
+import { NotFoundException } from "@nestjs/common";
+import { KeycloakDependencyError, ValidationError } from "../common/errors";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UsersService } from "./users.service";
 
-function createAdmin(location = "http://kc/admin/realms/closed-cras/users/u-9") {
+function createAdmin(
+  location = "http://kc/admin/realms/closed-cras/users/u-9",
+) {
   return {
     post: jest.fn().mockResolvedValue({
       status: 201,
@@ -14,227 +17,205 @@ function createAdmin(location = "http://kc/admin/realms/closed-cras/users/u-9") 
       body: undefined,
       headers: new Headers(),
     }),
+    get: jest.fn().mockResolvedValue({
+      status: 200,
+      body: {
+        id: "u-9",
+        username: "ana.souza@pucrs.br",
+        firstName: "Ana",
+        lastName: "Souza",
+        enabled: true,
+      },
+      headers: new Headers(),
+    }),
     delete: jest.fn(),
+  };
+}
+
+function createReadClient() {
+  return {
+    listUsers: jest.fn(),
+    getUser: jest.fn(),
   };
 }
 
 const newUser: CreateUserDto = {
   username: "ana.souza@pucrs.br",
-  email: "ana.souza@pucrs.br",
-  firstName: "Ana",
-  lastName: "Souza",
+  "first-name": "Ana",
+  "last-name": "Souza",
   password: "senha-segura",
 };
 
 describe("UsersService", () => {
-  describe("create", () => {
-    it("sends the full representation and returns the id from Location", async () => {
-      const admin = createAdmin();
-
-      await expect(
-        new UsersService(admin as never).create(newUser),
-      ).resolves.toEqual({ id: "u-9" });
-      expect(admin.post).toHaveBeenCalledWith("/users", {
-        username: "ana.souza@pucrs.br",
-        email: "ana.souza@pucrs.br",
-        firstName: "Ana",
-        lastName: "Souza",
+  it("maps Keycloak user fields to the public response contract", async () => {
+    const keycloak = createReadClient();
+    keycloak.listUsers.mockResolvedValue([
+      {
+        id: "1",
+        username: "a@b.com",
+        firstName: "Ada",
+        lastName: "Lovelace",
         enabled: true,
-        emailVerified: false,
+      },
+    ]);
+    const service = new UsersService(keycloak as never, undefined as never);
+
+    await expect(service.list("token", false)).resolves.toEqual([
+      {
+        id: "1",
+        username: "a@b.com",
+        "first-name": "Ada",
+        "last-name": "Lovelace",
+        enabled: true,
+      },
+    ]);
+    expect(keycloak.listUsers).toHaveBeenCalledWith("token", false);
+  });
+
+  it("uses empty strings when Keycloak omits names", async () => {
+    const keycloak = createReadClient();
+    keycloak.getUser.mockResolvedValue({
+      id: "1",
+      username: "a@b.com",
+      enabled: false,
+    });
+    const service = new UsersService(keycloak as never, undefined as never);
+
+    await expect(service.get("token", "1")).resolves.toEqual({
+      id: "1",
+      username: "a@b.com",
+      "first-name": "",
+      "last-name": "",
+      enabled: false,
+    });
+  });
+
+  it("does not expose Keycloak service-account users", async () => {
+    const keycloak = createReadClient();
+    keycloak.listUsers.mockResolvedValue([
+      { id: "1", username: "admin@pucrs.br", enabled: true },
+      { id: "2", username: "service-account-oauth", enabled: true },
+    ]);
+    const service = new UsersService(keycloak as never, undefined as never);
+
+    await expect(service.list("token", true)).resolves.toHaveLength(1);
+  });
+
+  it("maps a missing user to NotFound and preserves other dependency errors", async () => {
+    const missingClient = createReadClient();
+    missingClient.getUser.mockRejectedValue(
+      new KeycloakDependencyError("not_found", 404),
+    );
+    const missing = new UsersService(
+      missingClient as never,
+      undefined as never,
+    );
+    await expect(missing.get("token", "missing")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    const forbidden = new KeycloakDependencyError("forbidden", 403);
+    const deniedClient = createReadClient();
+    deniedClient.getUser.mockRejectedValue(forbidden);
+    const denied = new UsersService(deniedClient as never, undefined as never);
+    await expect(denied.get("token", "denied")).rejects.toBe(forbidden);
+  });
+
+  it("creates a user and returns the id from Location", async () => {
+    const admin = createAdmin();
+    const service = new UsersService(undefined as never, admin as never);
+
+    await expect(service.create("token", newUser)).resolves.toEqual({
+      id: "u-9",
+      username: "ana.souza@pucrs.br",
+      "first-name": "Ana",
+      "last-name": "Souza",
+      enabled: true,
+    });
+    expect(admin.post).toHaveBeenCalledWith(
+      "/users",
+      expect.objectContaining({
+        username: newUser.username,
+        email: newUser.username,
+        enabled: true,
         credentials: [
-          { type: "password", value: "senha-segura", temporary: false },
+          { type: "password", value: newUser.password, temporary: false },
         ],
-      });
-    });
-
-    it("honours an explicit enabled=false", async () => {
-      const admin = createAdmin();
-
-      await new UsersService(admin as never).create({
-        ...newUser,
-        enabled: false,
-      });
-
-      expect(admin.post).toHaveBeenCalledWith(
-        "/users",
-        expect.objectContaining({ enabled: false }),
-      );
-    });
-
-    it.each([
-      ["no Location header", undefined],
-      ["a Location with no id segment", "http://kc/admin/realms/closed-cras/users"],
-    ])("fails loudly on %s", async (_case, location) => {
-      const admin = createAdmin();
-      admin.post.mockResolvedValue({
-        status: 201,
-        body: undefined,
-        headers: new Headers(location ? { location } : {}),
-      });
-
-      await expect(
-        new UsersService(admin as never).create(newUser),
-      ).rejects.toThrow(/pode ter sido criado/);
-    });
+      }),
+      "token",
+    );
+    expect(admin.get).toHaveBeenCalledWith("/users/u-9", "token");
   });
 
-  describe("replace", () => {
-    it("writes every field and defaults enabled to true", async () => {
-      const admin = createAdmin();
+  it("updates the complete user representation", async () => {
+    const admin = createAdmin();
+    const service = new UsersService(undefined as never, admin as never);
 
-      await new UsersService(admin as never).replace("u-9", {
-        username: "ana.souza@pucrs.br",
-        email: "nova@pucrs.br",
-        firstName: "Ana",
-        lastName: "Souza",
-      });
+    await service.update("token", "u-9", {
+      username: newUser.username,
+      "first-name": newUser["first-name"],
+      "last-name": newUser["last-name"],
+    });
 
-      expect(admin.put).toHaveBeenCalledWith("/users/u-9", {
-        username: "ana.souza@pucrs.br",
-        email: "nova@pucrs.br",
-        firstName: "Ana",
-        lastName: "Souza",
-        enabled: true,
+    expect(admin.put).toHaveBeenCalledWith(
+      "/users/u-9",
+      {
+        username: newUser.username,
+        email: newUser.username,
+        firstName: newUser["first-name"],
+        lastName: newUser["last-name"],
         emailVerified: false,
-      });
-    });
+      },
+      "token",
+    );
   });
 
-  describe("patch", () => {
-    it("sends only the fields that were provided", async () => {
-      const admin = createAdmin();
+  it("changes the password before updating the profile", async () => {
+    const admin = createAdmin();
+    const service = new UsersService(undefined as never, admin as never);
 
-      await new UsersService(admin as never).patch("u-9", {
+    await service.patch("token", "u-9", {
+      "first-name": "Aninha",
+      password: "senha-nova",
+    });
+
+    expect(admin.put).toHaveBeenNthCalledWith(
+      1,
+      "/users/u-9/reset-password",
+      { type: "password", value: "senha-nova", temporary: false },
+      "token",
+    );
+    expect(admin.put).toHaveBeenNthCalledWith(
+      2,
+      "/users/u-9",
+      {
         firstName: "Aninha",
-      });
-
-      expect(admin.put).toHaveBeenCalledTimes(1);
-      expect(admin.put).toHaveBeenCalledWith("/users/u-9", {
-        firstName: "Aninha",
-      });
-    });
-
-    it("changes the password before touching the profile", async () => {
-      const admin = createAdmin();
-
-      await new UsersService(admin as never).patch("u-9", {
-        firstName: "Aninha",
-        password: "senha-nova",
-      });
-
-      // A política de senha do realm é a recusa mais provável: falhar antes de
-      // gravar o perfil deixa o usuário intacto.
-      expect(admin.put).toHaveBeenNthCalledWith(
-        1,
-        "/users/u-9/reset-password",
-        { type: "password", value: "senha-nova", temporary: false },
-      );
-      expect(admin.put).toHaveBeenNthCalledWith(2, "/users/u-9", {
-        firstName: "Aninha",
-      });
-    });
-
-    it("leaves the profile untouched when reset-password fails", async () => {
-      const admin = createAdmin();
-      admin.put.mockRejectedValueOnce(new Error("password policy"));
-
-      await expect(
-        new UsersService(admin as never).patch("u-9", {
-          firstName: "Aninha",
-          password: "123456",
-        }),
-      ).rejects.toThrow("password policy");
-      expect(admin.put).toHaveBeenCalledTimes(1);
-    });
-
-    it("drops explicit nulls instead of forwarding them to Keycloak", async () => {
-      const admin = createAdmin();
-
-      await new UsersService(admin as never).patch("u-9", {
-        firstName: "Aninha",
-        lastName: null as never,
-      });
-
-      expect(admin.put).toHaveBeenCalledWith("/users/u-9", {
-        firstName: "Aninha",
-      });
-    });
-
-    it("refuses a patch made only of nulls", async () => {
-      const admin = createAdmin();
-
-      await expect(
-        new UsersService(admin as never).patch("u-9", {
-          firstName: null as never,
-        }),
-      ).rejects.toBeInstanceOf(ValidationError);
-      expect(admin.put).not.toHaveBeenCalled();
-    });
-
-    it("clears emailVerified when the email changes", async () => {
-      const admin = createAdmin();
-
-      await new UsersService(admin as never).patch("u-9", {
-        email: "nova@pucrs.br",
-      });
-
-      expect(admin.put).toHaveBeenCalledWith("/users/u-9", {
-        email: "nova@pucrs.br",
-        emailVerified: false,
-      });
-    });
-
-    it("skips the user body when only the password changes", async () => {
-      const admin = createAdmin();
-
-      await new UsersService(admin as never).patch("u-9", {
-        password: "senha-nova",
-      });
-
-      expect(admin.put).toHaveBeenCalledTimes(1);
-      expect(admin.put).toHaveBeenCalledWith(
-        "/users/u-9/reset-password",
-        expect.objectContaining({ value: "senha-nova" }),
-      );
-    });
-
-    it("refuses an empty patch without touching Keycloak", async () => {
-      const admin = createAdmin();
-
-      await expect(
-        new UsersService(admin as never).patch("u-9", {}),
-      ).rejects.toBeInstanceOf(ValidationError);
-      expect(admin.put).not.toHaveBeenCalled();
-    });
-
-    it("keeps enabled=false in the patch body", async () => {
-      const admin = createAdmin();
-
-      await new UsersService(admin as never).patch("u-9", { enabled: false });
-
-      expect(admin.put).toHaveBeenCalledWith("/users/u-9", { enabled: false });
-    });
+      },
+      "token",
+    );
   });
 
-  describe("deactivate", () => {
-    it("disables the user instead of deleting it", async () => {
-      const admin = createAdmin();
+  it("rejects an empty patch", async () => {
+    const admin = createAdmin();
+    const service = new UsersService(undefined as never, admin as never);
 
-      await new UsersService(admin as never).deactivate("u-9");
+    await expect(service.patch("token", "u-9", {})).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    expect(admin.put).not.toHaveBeenCalled();
+  });
 
-      expect(admin.put).toHaveBeenCalledWith("/users/u-9", { enabled: false });
-      expect(admin.delete).not.toHaveBeenCalled();
-    });
+  it("disables the user instead of deleting it", async () => {
+    const admin = createAdmin();
+    const service = new UsersService(undefined as never, admin as never);
 
-    it("escapes the id in the path", async () => {
-      const admin = createAdmin();
+    await service.delete("token", "u 9/../admin");
 
-      await new UsersService(admin as never).deactivate("u 9/../admin");
-
-      expect(admin.put).toHaveBeenCalledWith(
-        "/users/u%209%2F..%2Fadmin",
-        expect.anything(),
-      );
-    });
+    expect(admin.put).toHaveBeenCalledWith(
+      "/users/u%209%2F..%2Fadmin",
+      { enabled: false },
+      "token",
+    );
+    expect(admin.delete).not.toHaveBeenCalled();
   });
 });

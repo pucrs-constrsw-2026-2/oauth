@@ -1,6 +1,10 @@
-/** Resposta do `POST /v1/users`: só o id, como manda o enunciado. */
+/** Resposta pública das operações de usuário. */
 export interface CreatedUser {
   id: string;
+  username: string;
+  "first-name": string;
+  "last-name": string;
+  enabled: boolean;
 }
 
 /** Subconjunto da UserRepresentation do Keycloak que a trilha B escreve. */

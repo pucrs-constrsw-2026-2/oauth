@@ -23,8 +23,8 @@ The OAuth service is self-contained so it can be run, tested, and updated withou
 
 - Framework: **NestJS 11** on **Node.js 24**, written in **TypeScript** (strict mode).
 - External identity provider: **Keycloak 26**, realm configured via `KEYCLOAK_REALM` (`.env.example` ships `closed-cras`; the README and test fixtures reference realm `constrsw` — check the active `.env` before assuming either).
-- Three functional areas, each a NestJS module: **Auth** (`/v1/auth`, user login/refresh/logout), **Users** (`/v1/users`, write-side CRUD proxied to Keycloak), **Roles** (`/v1/roles`, full CRUD + role-mapping proxied to Keycloak), plus a root **Health** endpoint (`GET /health`).
-- No database of its own — **Keycloak's realm is the only system of record**. This service is stateless aside from an in-memory admin-token cache.
+- Three functional areas, each a NestJS module: **Auth** (`POST /login`, `POST /refresh`, `POST /logout`), **Users** (`/users`, full CRUD proxied to Keycloak), **Roles** (`/roles`, full CRUD + role-mapping proxied to Keycloak), plus a root **Health** endpoint (`GET /health`).
+- No database of its own — **Keycloak's realm is the only system of record**. The service is stateless.
 - Every error response uses one shared four-key envelope (`error_code`, `error_description`, `error_source`, `error_stack`), enforced by a single global exception filter.
 - Swagger/OpenAPI UI is served at `GET /docs` (built from the NestJS Swagger module, not from `contracts/identity-gateway.yaml`, which is a separate, admittedly partial, hand-maintained OpenAPI fragment).
 
@@ -47,7 +47,7 @@ The OAuth service is self-contained so it can be run, tested, and updated withou
 ### Existing Documentation Found in the Repository
 
 - `README.md` — architecture summary, routes tables, env var table, run/test instructions, key decisions with rationale (primary source for this documentation).
-- `contracts/identity-gateway.yaml` — partial hand-written OpenAPI 3.1 fragment (login + roles only; explicitly missing `/v1/users` per the README).
+- `contracts/identity-gateway.yaml` — partial hand-written OpenAPI 3.1 fragment (login + roles only; the user routes are not described there).
 - `keycloak/realm-closed-cras.json` — importable local Keycloak realm definition (clients `bff` and `oauth-admin`).
 - `Planning/Rotas.md` — called out in the README as a legacy assignment document, **not** an executable source of truth (superseded decisions); not used as a source here.
 
@@ -57,7 +57,7 @@ The OAuth service is self-contained so it can be run, tested, and updated withou
 
 ### Executive Summary
 
-`backend/oauth` is a stateless NestJS gateway in front of Keycloak. It exposes three HTTP surfaces (`/v1/auth`, `/v1/users`, `/v1/roles`) plus `/health`, and translates every call into either a Keycloak OIDC token request (end-user grants) or a Keycloak Admin REST API call (service-account grant). It owns no database — Keycloak's realm is the sole system of record — and normalizes every failure into one shared JSON error envelope.
+`backend/oauth` is a stateless NestJS gateway in front of Keycloak. It exposes auth routes (`/login`, `/refresh`, `/logout`), user routes (`/users`) and role routes (`/roles`) plus `/health`, and translates every call into either a Keycloak OIDC token request (end-user grants) or a Keycloak Admin REST API call (service-account grant). It owns no database — Keycloak's realm is the sole system of record — and normalizes every failure into one shared JSON error envelope.
 
 ### Module Map
 
@@ -65,15 +65,15 @@ The OAuth service is self-contained so it can be run, tested, and updated withou
 AppModule
 ├── ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment })
 ├── AuthModule
-│   ├── AuthController      (/v1/auth: login, refresh, logout)
+│   ├── AuthController      (/login, /refresh, /logout)
 │   ├── AuthService         (thin pass-through to KeycloakClient)
 │   └── KeycloakClient      (end-user grants: password, refresh_token)
 ├── UsersModule
-│   ├── UsersController     (/v1/users: create, replace, patch, remove)
+│   ├── UsersController     (/users: create, list, get, replace, patch, remove)
 │   ├── UsersService        (maps DTOs ↔ Keycloak UserRepresentation)
 │   └── imports KeycloakModule
 ├── RolesModule
-│   ├── RolesController     (/v1/roles: full CRUD + role-mapping)
+│   ├── RolesController     (/roles: full CRUD + role-mapping)
 │   ├── RolesService        (soft-delete + role-mapping cleanup logic)
 │   └── imports KeycloakModule
 ├── KeycloakModule
@@ -85,12 +85,12 @@ Cross-cutting, not modules: `main.ts` (bootstrap), `common/` (error envelope + s
 
 ### Request Lifecycle
 
-1. `main.ts` builds the Nest app, applies `cookie-parser()`, a global `ValidationPipe({ whitelist: true, transform: true })`, and the global `ErrorResponseFilter`.
+1. `main.ts` builds the Nest app, applies `cookie-parser()`, a global `ValidationPipe({ whitelist: true, transform: true })`, and the global `ProblemDetailsFilter`.
 2. A route handler (Controller) validates its DTO via `class-validator`, then delegates to a Service.
 3. The Service either:
    - calls `KeycloakClient` (auth flows only), which calls the shared `requestToken()` helper in `common/keycloak-http.ts`, or
-   - calls `KeycloakAdminClient` (users/roles), which owns its own cached service-account token and translates upstream HTTP status codes into the `AppError` hierarchy.
-4. Any thrown error (`AppError` subclass, Nest `HttpException`, or unexpected `Error`) is caught by the single global `ErrorResponseFilter` and serialized into the four-key envelope.
+   - calls `KeycloakAdminClient` (users/roles), which obtains a service-account token per call and translates upstream HTTP status codes into the `AppError` hierarchy.
+4. Any thrown error (`AppError` subclass, Nest `HttpException`, or unexpected `Error`) is caught by the single global `ProblemDetailsFilter` and serialized into the four-key envelope.
 
 ### Two Keycloak Clients, Deliberately Separate
 
@@ -100,29 +100,30 @@ Cross-cutting, not modules: `main.ts` (bootstrap), `common/` (error envelope + s
 | Represents | The end user | The service itself (service account) |
 | Credentials | `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET` | `KEYCLOAK_ADMIN_CLIENT_ID` / `KEYCLOAK_ADMIN_CLIENT_SECRET` |
 | Used by | `AuthService` only | `UsersService`, `RolesService` |
-| Token caching | None (one request per call) | In-memory, with a 5s expiry margin and a 1s minimum cache floor; concurrent callers share one in-flight fetch (`pendingToken`) |
+| Token caching | None (one request per call) | None (obtains a token per call) |
 | Shared low-level helper | `common/keycloak-http.ts#requestToken` | its own `exchange()`/`send()` |
 
 This split is an explicit design decision recorded in the code comments: mixing the two would let an application-identifying credential (`client_credentials`) stand in for a person, which the team treats as incorrect.
 
-### Authentication & Session Flow (`/v1/auth`)
+### Authentication & Session Flow (`/login`, `/refresh`, `/logout`)
 
-1. `POST /v1/auth/login` — `AuthController` validates `LoginDto` (`username` must be a valid email, `password` non-empty), calls `AuthService.login`, which calls `KeycloakClient.login` (`grant_type=password` against `{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token`).
-2. On success, the controller writes an `httpOnly` cookie (`SESSION_COOKIE_NAME`) containing `JSON.stringify({ access_token, refresh_token })`, with `secure` and `sameSite` driven by `COOKIE_SECURE` / `COOKIE_SAME_SITE`. The HTTP response body itself only ever contains `token_type`, `expires_in`, `refresh_expires_in` — the raw tokens never leave the cookie.
-3. `POST /v1/auth/refresh` reads that cookie, extracts `refresh_token`, and repeats the flow with `grant_type=refresh_token`.
-4. `POST /v1/auth/logout` clears the cookie; there is no Keycloak-side token revocation call.
+1. `POST /login` — `AuthController` validates `LoginDto` (`username` must be a valid email, `password` non-empty), calls `AuthService.login`, which calls `KeycloakClient.login` (`grant_type=password` against `{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token`).
+2. On success, the controller returns the full token contract in the body (`token_type`, `access_token`, `expires_in`, `refresh_token`, `refresh_expires_in`) and also writes an `httpOnly` cookie (`SESSION_COOKIE_NAME`) containing `JSON.stringify({ access_token, refresh_token })`, with `secure` and `sameSite` driven by `COOKIE_SECURE` / `COOKIE_SAME_SITE`.
+3. `POST /refresh` reads that cookie, extracts `refresh_token`, and repeats the flow with `grant_type=refresh_token`.
+4. `POST /logout` clears the cookie; there is no Keycloak-side token revocation call.
 5. Failures from `requestToken()` are normalized to `KeycloakDependencyError`: a Keycloak `401` becomes a `401 invalid_credentials`, any other non-2xx becomes `503`-style (`upstream_rejected`), and a network/transport failure also becomes `503`.
 
-### Admin-Backed Resources: Users (`/v1/users`)
+### Admin-Backed Resources: Users (`/users`)
 
-Implemented operations: `POST` (create), `PUT /:id` (replace), `PATCH /:id` (partial update), `DELETE /:id` (soft-delete). **There is no `GET` — this controller does not implement user reads.**
+Implemented operations: `POST` (create), `GET` (list, `?enabled=` filter), `GET /:id` (read), `PUT /:id` (replace), `PATCH /:id` (partial update), `DELETE /:id` (soft-delete).
 
-- `create` posts a `KeycloakUserRepresentation` to `/users` and reads the new id out of the Admin API's `Location` response header (Keycloak's `POST /users` returns no body).
-- `replace` (`PUT`) always sends `enabled` explicitly (defaulted to `true` if the DTO omits it) — documented in code as intentional: the upstream Admin API does a partial merge, so omitting `enabled` on a routine `PUT` would silently re-enable a logically-deleted user.
+- `create` posts a `KeycloakUserRepresentation` to `/users` and reads the new id out of the Admin API's `Location` response header (Keycloak's `POST /users` returns no body). New users are always enabled; `enabled` is not accepted as request input.
+- `list`/`get` forward the caller's bearer token to the Admin API, so `401`/`403` reflect the caller's realm permissions. Service-account users (`service-account-*`) are filtered out of the list.
+- `replace` (`PUT`) sends `username`, `email`, `firstName`, `lastName` and `emailVerified`, but **omits `enabled`**: the Admin API preserves the current value, so a routine `PUT` does not re-enable a logically-deleted user.
 - `patch` splits into up to two upstream calls: password first (via `PUT /users/{id}/reset-password`, since credentials are only honored by Keycloak at creation time), then the remaining fields (via `PUT /users/{id}`) — password is sent first so a policy rejection doesn't leave the profile half-updated. An empty patch body (no password, no other fields) is rejected with a `ValidationError` before any upstream call.
 - `deactivate` (`DELETE`) is a **soft delete**: `PUT /users/{id}` with `{ enabled: false }`. The user is never physically removed from the realm.
 
-### Admin-Backed Resources: Roles (`/v1/roles`)
+### Admin-Backed Resources: Roles (`/roles`)
 
 Full CRUD plus role-mapping, all realm roles (client roles are explicitly rejected as "not found" — see below):
 
@@ -134,14 +135,16 @@ Full CRUD plus role-mapping, all realm roles (client roles are explicitly reject
 
 ### Error Handling Architecture
 
-A single contract, closed by the team in Sprint 0 and enforced by one global filter (`common/error-response.filter.ts`):
+A single contract, closed by the team in Sprint 0 and enforced by one global filter (`common/problem-details.filter.ts`):
 
 ```json
 {
   "error_code": "OA-404",
   "error_description": "human-readable message",
-  "error_source": "keycloak | validation | oauth | users | ...",
-  "error_stack": [{ "source": "...", "code": "...", "description": "..." }]
+  "error_source": "OAuthAPI",
+  "error_stack": [
+    { "error_code": "KC-404", "error_description": "...", "error_source": "keycloak" }
+  ]
 }
 ```
 
@@ -152,7 +155,7 @@ A single contract, closed by the team in Sprint 0 and enforced by one global fil
 
 ### Known Gap (from the README — a real characteristic of the current code, not fixed by this documentation pass)
 
-> `/v1/users` and `/v1/roles` currently have **no authorization**: any request reaches the service account, which holds `manage-users`/`manage-realm` on the realm. Closing this is called out in the README as a prerequisite before exposing the service outside the local Compose network.
+> `/roles` currently has **no request-level authorization**: the controller only checks that a bearer token is present, then performs the operation through the shared service account, which holds `manage-realm` on the realm. `/users` instead forwards the caller's token to the Admin API and therefore returns real `401`/`403`.
 
 ---
 
@@ -169,7 +172,7 @@ backend/oauth/
 │   ├── interfaces/
 │   │   └── health-response.interface.ts
 │   │
-│   ├── auth/                         # /v1/auth — end-user login/refresh/logout
+│   ├── auth/                         # /login, /refresh, /logout — end-user session
 │   │   ├── auth.module.ts
 │   │   ├── auth.controller.ts        # POST login, refresh, logout — sets/clears the session cookie
 │   │   ├── auth.service.ts           # Thin pass-through to KeycloakClient
@@ -177,9 +180,9 @@ backend/oauth/
 │   │   ├── dto/login.dto.ts          # username (email), password
 │   │   └── interfaces/auth-response.interface.ts   # AuthResponse (public shape), LogoutResponse
 │   │
-│   ├── users/                        # /v1/users — write-side CRUD over Keycloak users
+│   ├── users/                        # /users — CRUD over Keycloak users
 │   │   ├── users.module.ts           # imports KeycloakModule
-│   │   ├── users.controller.ts       # POST, PUT :id, PATCH :id, DELETE :id (no GET)
+│   │   ├── users.controller.ts       # POST, GET, GET :id, PUT :id, PATCH :id, DELETE :id
 │   │   ├── users.service.ts          # Maps DTOs ↔ Keycloak UserRepresentation; split-call PATCH
 │   │   ├── dto/
 │   │   │   ├── create-user.dto.ts
@@ -189,7 +192,7 @@ backend/oauth/
 │   │   │   └── trim.ts               # @Trim() decorator — strips whitespace before validation
 │   │   └── interfaces/user.interface.ts     # CreatedUser, KeycloakUserRepresentation, KeycloakCredential
 │   │
-│   ├── roles/                        # /v1/roles — full CRUD + role-mapping over Keycloak realm roles
+│   ├── roles/                        # /roles — full CRUD + role-mapping over Keycloak realm roles
 │   │   ├── roles.module.ts           # imports KeycloakModule
 │   │   ├── roles.controller.ts       # POST, GET, GET :id, PUT :id, PATCH :id, DELETE :id, assign/unassign
 │   │   ├── roles.service.ts          # Soft-delete (attribute-based), role-mapping cleanup, name-conflict handling
@@ -201,10 +204,10 @@ backend/oauth/
 │   │
 │   ├── keycloak/                     # Shared Keycloak Admin API access
 │   │   ├── keycloak.module.ts        # Exports KeycloakAdminClient for users/ and roles/
-│   │   └── keycloak-admin.client.ts  # client_credentials grant, cached token, GET/POST/PUT/DELETE, status→AppError mapping
+│   │   └── keycloak-admin.client.ts  # client_credentials grant, GET/POST/PUT/DELETE, status→AppError mapping
 │   │
 │   ├── common/                       # Cross-cutting: error envelope + shared HTTP helper
-│   │   ├── error-response.filter.ts  # Global @Catch() — serializes every error to the 4-key envelope
+│   │   ├── problem-details.filter.ts  # Global @Catch() — serializes every error to the 4-key envelope
 │   │   ├── errors.ts                 # AppError hierarchy (ValidationError, NotFoundError, ConflictError, KeycloakError, KeycloakDependencyError)
 │   │   └── keycloak-http.ts          # requestToken() — shared OIDC token-endpoint caller with timeout
 │   │
@@ -213,9 +216,12 @@ backend/oauth/
 ├── test/                             # Integration (e2e) tests — separate from src/*.spec.ts unit tests
 │   ├── jest-e2e.json                 # Jest config for the e2e project
 │   ├── setup-e2e.ts                  # Deterministic env vars for tests; Keycloak is always faked via global.fetch
-│   └── roles.e2e-spec.ts             # Full HTTP-stack test for /v1/roles against an in-memory Keycloak fake
+│   ├── roles.e2e-spec.ts             # Full HTTP-stack test for /roles against an in-memory Keycloak fake
+│   ├── auth-users.e2e-spec.ts        # HTTP-stack tests for /login and user reads
+│   ├── identity-flow.e2e-spec.ts     # End-to-end journey across auth, users and roles
+│   └── support/keycloak-fake.ts      # In-memory fake of the Keycloak token + Admin API
 │
-├── contracts/identity-gateway.yaml   # Partial hand-written OpenAPI 3.1 (login + roles only; no /v1/users)
+├── contracts/identity-gateway.yaml   # Partial hand-written OpenAPI 3.1 (login + roles only; user routes not described)
 ├── keycloak/realm-closed-cras.json   # Importable local Keycloak realm (clients: bff, oauth-admin)
 ├── Dockerfile                        # node:24.19.0-alpine → npm install --legacy-peer-deps → build → node dist/main.js
 ├── .env.example                      # Documents every required env var (see §6)
@@ -260,47 +266,49 @@ Every non-2xx response uses the shared envelope from §2 (`error_code`, `error_d
 |---|---|---|---|---|
 | GET | `/health` | none | `200 { "status": "ok", "service": "oauth" }` | Fixed literal response; no upstream check |
 
-### Auth — `/v1/auth`
+### Auth
 
 | Method | Path | Body | Success | Failure modes |
 |---|---|---|---|---|
-| POST | `/v1/auth/login` | `LoginDto { username: email, password: string(min 1) }` | `AuthResponse { token_type, expires_in, refresh_expires_in }` + sets `httpOnly` session cookie | `400` invalid body; `401` invalid credentials; `503` Keycloak unavailable/unexpected response |
-| POST | `/v1/auth/refresh` | none (reads session cookie) | Same shape as login; cookie refreshed | Same failure modes; empty/absent refresh token is passed through as `""` to Keycloak |
-| POST | `/v1/auth/logout` | none | `200 { "status": "signed_out" }`; clears session cookie | — |
+| POST | `/login` | `LoginDto { username: email, password: string(min 1) }` (multipart/form-data) | `201 AuthResponse { token_type, access_token, expires_in, refresh_token, refresh_expires_in }` + sets `httpOnly` session cookie | `400` invalid body; `401` invalid credentials; `503` Keycloak unavailable/unexpected response |
+| POST | `/refresh` | none (reads session cookie) | Same shape as login; cookie refreshed | Same failure modes; empty/absent refresh token is passed through as `""` to Keycloak |
+| POST | `/logout` | none | `201 { "status": "signed_out" }`; clears session cookie | — |
 
-The response body **never** contains `access_token` or `refresh_token` — only cookie metadata-free fields.
+The login response body carries the full token contract, including `access_token` and `refresh_token`; the same pair is mirrored into the `httpOnly` session cookie.
 
-### Users — `/v1/users`
+### Users — `/users`
 
-**No read endpoint exists.** `400`, `404`, `503` apply to every route below; `409` is documented per-route.
-
-| Method | Path | Body | Success | Failure modes |
-|---|---|---|---|---|
-| POST | `/v1/users` | `CreateUserDto { username, email, firstName, lastName, password (min 6), enabled? }` | `201 { id }` | `400`; `409` username/email already in use |
-| PUT | `/v1/users/:id` | `ReplaceUserDto { username, email, firstName, lastName, enabled? }` (no password) | `204` no body | `400`; `404`; `409` |
-| PATCH | `/v1/users/:id` | `PatchUserDto` — all optional, **at least one required** (password included) | `204` no body | `400` (incl. "provide at least one field"); `404`; `409` |
-| DELETE | `/v1/users/:id` | none | `204` — **soft delete** (`enabled: false`) | `404` |
-
-### Roles — `/v1/roles`
-
-Requires valid admin service-account credentials; without them every route fails with `503`.
+All routes require `Authorization: Bearer <access_token>`. `400`, `401`, `403`, `404`, `503` apply generally; `409` is documented per-route.
 
 | Method | Path | Body | Success | Failure modes |
 |---|---|---|---|---|
-| POST | `/v1/roles` | `CreateRoleDto { name, description? }` | `201 RoleResponse { id, name, description? }` | `400`; `409` (distinct message if the name belongs to a logically-deleted role) |
-| GET | `/v1/roles` | — | `200 RoleResponse[]` (excludes logically-deleted) | — |
-| GET | `/v1/roles/:id` | — | `200 RoleResponse` | `404` (missing, deleted, or a client role) |
-| PUT | `/v1/roles/:id` | `UpdateRoleDto { name, description? }` | `200 RoleResponse` | `400`; `404` |
-| PATCH | `/v1/roles/:id` | `PatchRoleDto` (all optional) | `200 RoleResponse` | `404` |
-| DELETE | `/v1/roles/:id` | — | `204` — **soft delete** + strips role from every holder | `404` |
-| POST | `/v1/roles/:id/users/:userId` | — | `204` — assigns the realm role | propagates Keycloak errors |
-| DELETE | `/v1/roles/:id/users/:userId` | — | `204` — removes assignment (accepts a logically-deleted role id, so an orphaned mapping can still be cleaned up) | |
+| POST | `/users` | `CreateUserDto { username, "first-name", "last-name", password (min 6) }` (no `enabled`) | `201` user representation (`id`, `username`, `first-name`, `last-name`, `enabled`) | `400`; `409` username/email already in use |
+| GET | `/users` | — (optional `?enabled=true|false`) | `200` user list | `400`; `401`; `403` |
+| GET | `/users/:id` | — | `200` user representation | `401`; `403`; `404` |
+| PUT | `/users/:id` | `ReplaceUserDto { username, "first-name", "last-name" }` (no password, no `enabled`) | `200` no body | `400`; `404`; `409` |
+| PATCH | `/users/:id` | `PatchUserDto` — `username`/`"first-name"`/`"last-name"`/`password`, all optional, **at least one required** | `200` no body | `400` (incl. "provide at least one field"); `404`; `409` |
+| DELETE | `/users/:id` | none | `204` — **soft delete** (`enabled: false`) | `404` |
+
+### Roles — `/roles`
+
+Requires an `Authorization: Bearer` header; the token is only checked for presence/format, and the operation runs with the shared service account. Without service-account credentials every route fails with `503`.
+
+| Method | Path | Body | Success | Failure modes |
+|---|---|---|---|---|
+| POST | `/roles` | `CreateRoleDto { name, description? }` | `201 RoleResponse { id, name, description? }` | `400`; `409` (distinct message if the name belongs to a logically-deleted role) |
+| GET | `/roles` | — | `200 RoleResponse[]` (excludes logically-deleted) | — |
+| GET | `/roles/:id` | — | `200 RoleResponse` | `404` (missing, deleted, or a client role) |
+| PUT | `/roles/:id` | `UpdateRoleDto { name, description? }` | `200 RoleResponse` | `400`; `404` |
+| PATCH | `/roles/:id` | `PatchRoleDto` (all optional) | `200 RoleResponse` | `404` |
+| DELETE | `/roles/:id` | — | `204` — **soft delete** + strips role from every holder | `404` |
+| POST | `/roles/:id/users/:userId` | — | `204` — assigns the realm role | propagates Keycloak errors |
+| DELETE | `/roles/:id/users/:userId` | — | `204` — removes assignment (accepts a logically-deleted role id, so an orphaned mapping can still be cleaned up) | |
 
 `RoleResponse` never exposes `composite`, `clientRole`, `containerId`, or `attributes`. A role with `clientRole: true` is reported as `404` on every path — this API manages realm roles only.
 
 ### Authentication/Authorization Status
 
-There is **no route-level authorization guard** anywhere in `src/` for `/v1/users` or `/v1/roles` (see §2, Known Gap).
+There is **no route-level authorization guard** anywhere in `src/`. `/roles` only checks for a bearer header (the operation uses the service account), while `/users` forwards the caller token to the Admin API (see §2, Known Gap).
 
 ---
 
@@ -332,13 +340,13 @@ interface KeycloakRole {
 | Name | File | Shape |
 |---|---|---|
 | `LoginDto` | `auth/dto/login.dto.ts` | `{ username: email, password: string (min 1) }` |
-| `AuthResponse` | `auth/interfaces/auth-response.interface.ts` | `Pick<TokenResponse, "token_type" \| "expires_in" \| "refresh_expires_in">` |
+| `AuthResponse` | `auth/interfaces/auth-response.interface.ts` | `Pick<TokenResponse, "token_type" \| "access_token" \| "expires_in" \| "refresh_token" \| "refresh_expires_in">` |
 | `LogoutResponse` | same file | `{ status: "signed_out" }` |
-| `TokenResponse` | `common/keycloak-http.ts` | `{ token_type, access_token, expires_in, refresh_token?, refresh_expires_in? }` (raw Keycloak payload; only a subset reaches any response body) |
-| `CreateUserDto` | `users/dto/create-user.dto.ts` | `{ username, email, firstName, lastName, password (min 6), enabled? }` |
-| `PatchUserDto` | `users/dto/patch-user.dto.ts` | Same fields, all optional (`@ValidateIf`, not `@IsOptional`, so explicit `null` is still rejected) |
-| `ReplaceUserDto` | `users/dto/replace-user.dto.ts` | Same as create, **minus `password`** |
-| `CreatedUser` | `users/interfaces/user.interface.ts` | `{ id: string }` |
+| `TokenResponse` | `common/keycloak-http.ts` | `{ token_type, access_token, expires_in, refresh_token?, refresh_expires_in? }` (raw Keycloak payload; the login response publishes the five contract fields) |
+| `CreateUserDto` | `users/dto/create-user.dto.ts` | `{ username, "first-name", "last-name", password (min 6) }` (no `enabled`) |
+| `PatchUserDto` | `users/dto/patch-user.dto.ts` | `{ username?, "first-name"?, "last-name"?, password? }` (`@ValidateIf`, not `@IsOptional`, so explicit `null` is still rejected) |
+| `ReplaceUserDto` | `users/dto/replace-user.dto.ts` | `{ username, "first-name", "last-name" }` — no `password`, no `enabled` |
+| `CreatedUser` | `users/interfaces/user.interface.ts` | `{ id, username, "first-name", "last-name", enabled }` |
 | `CreateRoleDto` | `roles/dto/create-role.dto.ts` | `{ name (min 1), description? }` |
 | `PatchRoleDto` | `roles/dto/patch-role.dto.ts` | `PartialType(CreateRoleDto)` |
 | `UpdateRoleDto` | `roles/dto/update-role.dto.ts` | `extends CreateRoleDto` (PUT body shape) |
@@ -433,20 +441,19 @@ npm run test:e2e       # jest --config test/jest-e2e.json --runInBand — integr
 
 ### Testing
 
-- **Unit tests:** Jest + `ts-jest`, colocated as `*.spec.ts` under `src/`. Present for: `auth.controller`, `auth.service`, `keycloak.client`, `error-response.filter`, `env.config`, `keycloak-admin.client`, `roles.controller`, `roles.service`, `create-role.dto`, `users.controller`, `users.service`, `users.module`, `create-user.dto`, `login.dto`.
-- **Integration (e2e):** Supertest, in `test/`, separate Jest config (`test/jest-e2e.json`). Currently **one** spec: `test/roles.e2e-spec.ts` — boots the real `AppModule` + `ErrorResponseFilter` against an **in-memory fake of the Keycloak Admin API** wired through `global.fetch`; no live Keycloak needed.
-- **Coverage gap:** no e2e spec for `/v1/auth` or `/v1/users` — unit-level coverage only, at the time of this scan.
+- **Unit tests:** Jest + `ts-jest`, colocated as `*.spec.ts` under `src/`. Present for: `auth.controller`, `auth.service`, `keycloak.client`, `problem-details.filter`, `env.config`, `keycloak-admin.client`, `roles.controller`, `roles.service`, `create-role.dto`, `users.controller`, `users.service`, `users.module`, `create-user.dto`, `login.dto`.
+- **Integration (e2e):** Supertest, in `test/`, separate Jest config (`test/jest-e2e.json`): `roles.e2e-spec.ts`, `auth-users.e2e-spec.ts` and `identity-flow.e2e-spec.ts` boot the real `AppModule` + `ProblemDetailsFilter` against an **in-memory fake of the Keycloak Admin API** wired through `global.fetch`; no live Keycloak needed.
 - `test/setup-e2e.ts` sets deterministic env vars before `AppModule` is imported and sets `OTEL_ENABLED=false`.
 
 ### Manual Smoke Test (from the README)
 
 ```bash
 BASE=http://localhost:8181
-curl -i -X POST $BASE/v1/roles -H 'content-type: application/json' -d '{"name":"professor","description":"Docente"}'
-curl -s  $BASE/v1/roles | jq
-curl -i -X DELETE $BASE/v1/roles/<ID>   # 204
-curl -i $BASE/v1/roles/<ID>             # 404 (soft-deleted)
-curl -i -X POST $BASE/v1/auth/login -H 'content-type: application/json' -d '{"username":"professor@pucrs.br","password":"<password-in-keycloak>"}'
+curl -i -X POST $BASE/roles -H 'content-type: application/json' -d '{"name":"professor","description":"Docente"}'
+curl -s  $BASE/roles | jq
+curl -i -X DELETE $BASE/roles/<ID>   # 204
+curl -i $BASE/roles/<ID>             # 404 (soft-deleted)
+curl -i -X POST $BASE/login -F 'username=professor@pucrs.br' -F 'password=<password-in-keycloak>'
 ```
 
 Imported realm users: `admin@pucrs.br`, `coordinator@pucrs.br`, `professor@pucrs.br`, `student@pucrs.br` (passwords in the Keycloak console, `http://localhost:8081`).
@@ -517,7 +524,7 @@ No CI/CD pipeline configuration (`.github/workflows/`, `.gitlab-ci.yml`, etc.) w
 
 ### Pre-Deployment Caveat
 
-`/v1/users` and `/v1/roles` have no request-level authorization — every caller that can reach this service executes with the admin service account's full realm-management privileges. Close this before exposing the service outside the local Compose network.
+`/roles` has no request-level authorization — the bearer token is only checked for presence, then the operation executes with the admin service account's full realm-management privileges. `/users` forwards the caller token to the Admin API and returns real `401`/`403`. Close the roles gap before exposing the service outside the local Compose network.
 
 ---
 
@@ -525,11 +532,9 @@ No CI/CD pipeline configuration (`.github/workflows/`, `.gitlab-ci.yml`, etc.) w
 
 Properties of the current repository state, not artifacts of this documentation:
 
-1. **Realm name mismatch:** `.env.example` ships `KEYCLOAK_REALM=closed-cras`, while `README.md` and `test/setup-e2e.ts` reference realm `constrsw`.
-2. **README env var names for admin credentials** (`KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD`) don't match `src/config/env.config.ts` (`KEYCLOAK_ADMIN_CLIENT_ID`/`KEYCLOAK_ADMIN_CLIENT_SECRET`).
-3. **No authorization on `/v1/users` and `/v1/roles`** — explicitly flagged as a known gap in `README.md`.
-4. **`contracts/identity-gateway.yaml` is partial** — does not cover `/v1/users`; treat §4 of this document (sourced from the controllers) as authoritative instead.
-5. **No e2e test coverage for `/v1/auth` or `/v1/users`** — only `/v1/roles` has an integration spec today.
+1. **Realm name mismatch:** `.env.example` ships `KEYCLOAK_REALM=closed-cras`, while `README.md` and `test/setup-e2e.ts` reference realm `constrsw`. The live `.env` at the repo root drives the running service.
+2. **No request-level authorization on `/roles`** — the bearer token is only checked for presence; `/users` does forward the caller token to the Admin API and returns real `401`/`403`.
+3. **`contracts/identity-gateway.yaml` is partial** — does not cover the user routes; treat §4 of this document (sourced from the controllers) as authoritative instead.
 
 ---
 

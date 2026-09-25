@@ -110,10 +110,18 @@ export class KeycloakDependencyError extends KeycloakError {
         ? "Credenciais inválidas."
         : "O provedor de identidade está indisponível.",
       {
-        status: reason === "invalid_credentials" ? 401 : 503,
+        status: KeycloakDependencyError.statusFor(reason, upstreamStatus),
         upstreamStatus,
       },
     );
     this.reason = reason;
+  }
+
+  private static statusFor(reason: string, upstreamStatus?: number): number {
+    if (reason === "invalid_credentials") return 401;
+    if ([400, 401, 403, 404, 409].includes(upstreamStatus ?? 0)) {
+      return upstreamStatus as number;
+    }
+    return 503;
   }
 }

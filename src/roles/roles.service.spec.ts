@@ -92,7 +92,7 @@ describe("RolesService", () => {
       .mockResolvedValueOnce(ok({ id: "r1", name: "professor" }))
       .mockResolvedValueOnce(ok([]));
 
-    await service.remove("r1");
+    await service.delete("r1");
 
     expect(admin.put).toHaveBeenCalledWith(
       "/roles-by-id/r1",
@@ -114,7 +114,7 @@ describe("RolesService", () => {
       return ok(undefined, 204);
     });
 
-    await service.remove("r1");
+    await service.delete("r1");
 
     expect(admin.get).toHaveBeenCalledWith(
       "/roles/professor/users?first=100&max=100",
