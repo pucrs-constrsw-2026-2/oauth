@@ -5,7 +5,6 @@ import br.pucrs.constrsw.oauth.dto.UpdatePasswordRequest;
 import br.pucrs.constrsw.oauth.dto.UpdateUserRequest;
 import br.pucrs.constrsw.oauth.dto.UserResponse;
 import br.pucrs.constrsw.oauth.error.GlobalExceptionHandler;
-import br.pucrs.constrsw.oauth.error.UserManagementNotImplementedException;
 import br.pucrs.constrsw.oauth.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest({UserController.class, GlobalExceptionHandler.class})
 class UserControllerTest {
 
+        private static final String AUTHORIZATION = "Bearer user-token";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -43,9 +44,10 @@ class UserControllerTest {
                 "user@example.com", "secret", "First", "Last");
         UserResponse response = new UserResponse(
                 "user-id", "user@example.com", "First", "Last", true);
-        when(userService.create(request)).thenReturn(response);
+        when(userService.create(AUTHORIZATION, request)).thenReturn(response);
 
         mockMvc.perform(post("/users")
+                        .header("Authorization", AUTHORIZATION)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -63,7 +65,7 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.enabled").value(true))
                 .andExpect(jsonPath("$.password").doesNotExist());
 
-        verify(userService).create(request);
+        verify(userService).create(AUTHORIZATION, request);
     }
 
     @Test
@@ -87,27 +89,27 @@ class UserControllerTest {
 
     @Test
     void returnsUsersFromService() throws Exception {
-        when(userService.findAll()).thenReturn(List.of(
+        when(userService.findAll(AUTHORIZATION)).thenReturn(List.of(
                 new UserResponse("user-id", "user@example.com", "First", "Last", true)));
 
-        mockMvc.perform(get("/users"))
+        mockMvc.perform(get("/users").header("Authorization", AUTHORIZATION))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("user-id"))
                 .andExpect(jsonPath("$[0]['first-name']").value("First"));
 
-        verify(userService).findAll();
+        verify(userService).findAll(AUTHORIZATION);
     }
 
     @Test
     void returnsUserById() throws Exception {
-        when(userService.findById("user-id")).thenReturn(
+        when(userService.findById(AUTHORIZATION, "user-id")).thenReturn(
                 new UserResponse("user-id", "user@example.com", "First", "Last", true));
 
-        mockMvc.perform(get("/users/user-id"))
+        mockMvc.perform(get("/users/user-id").header("Authorization", AUTHORIZATION))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("user-id"));
 
-        verify(userService).findById("user-id");
+        verify(userService).findById(AUTHORIZATION, "user-id");
     }
 
     @Test
@@ -115,6 +117,7 @@ class UserControllerTest {
         UpdateUserRequest request = new UpdateUserRequest("Updated", "User", false);
 
         mockMvc.perform(put("/users/user-id")
+                        .header("Authorization", AUTHORIZATION)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -126,7 +129,7 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(""));
 
-        verify(userService).update("user-id", request);
+        verify(userService).update(AUTHORIZATION, "user-id", request);
     }
 
     @Test
@@ -134,17 +137,19 @@ class UserControllerTest {
         UpdatePasswordRequest request = new UpdatePasswordRequest("new-secret");
 
         mockMvc.perform(patch("/users/user-id")
+                        .header("Authorization", AUTHORIZATION)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"new-secret\"}"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(""));
 
-        verify(userService).updatePassword("user-id", request);
+        verify(userService).updatePassword(AUTHORIZATION, "user-id", request);
     }
 
     @Test
     void rejectsBlankPasswordUpdate() throws Exception {
         mockMvc.perform(patch("/users/user-id")
+                        .header("Authorization", AUTHORIZATION)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"  \"}"))
                 .andExpect(status().isBadRequest())
@@ -155,21 +160,11 @@ class UserControllerTest {
 
     @Test
     void disablesUserAndReturnsNoContent() throws Exception {
-        mockMvc.perform(delete("/users/user-id"))
+        mockMvc.perform(delete("/users/user-id").header("Authorization", AUTHORIZATION))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
 
-        verify(userService).disable("user-id");
+        verify(userService).disable(AUTHORIZATION, "user-id");
     }
 
-    @Test
-    void reportsUnimplementedUserIntegrationExplicitly() throws Exception {
-        when(userService.findAll()).thenThrow(new UserManagementNotImplementedException());
-
-        mockMvc.perform(get("/users"))
-                .andExpect(status().isNotImplemented())
-                .andExpect(jsonPath("$.error_code").value("501"))
-                .andExpect(jsonPath("$.error_description")
-                        .value("User management integration is not implemented yet"));
-    }
 }
