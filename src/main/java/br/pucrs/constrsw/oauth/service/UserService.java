@@ -18,27 +18,27 @@ public class UserService {
         this.userClient = userClient;
     }
 
-    public UserResponse create(CreateUserRequest request) {
-        return userClient.create(request);
+    public UserResponse create(String authorization, CreateUserRequest request) {
+        return userClient.create(authorization, request);
     }
 
-    public List<UserResponse> findAll() {
-        return userClient.findAll();
+    public List<UserResponse> findAll(String authorization) {
+        return userClient.findAll(authorization);
     }
 
-    public UserResponse findById(String id) {
-        return userClient.findById(id);
+    public UserResponse findById(String authorization, String id) {
+        return userClient.findById(authorization, id);
     }
 
-    public void update(String id, UpdateUserRequest request) {
-        userClient.update(id, request);
+    public void update(String authorization, String id, UpdateUserRequest request) {
+        userClient.update(authorization, id, request);
     }
 
-    public void updatePassword(String id, UpdatePasswordRequest request) {
-        userClient.updatePassword(id, request);
+    public void updatePassword(String authorization, String id, UpdatePasswordRequest request) {
+        userClient.updatePassword(authorization, id, request);
     }
 
-    public void disable(String id) {
-        userClient.disable(id);
+    public void disable(String authorization, String id) {
+        userClient.disable(authorization, id);
     }
 }

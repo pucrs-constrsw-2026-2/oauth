@@ -1,7 +1,22 @@
 package br.pucrs.constrsw.oauth.controller;
 
-import br.pucrs.constrsw.oauth.dto.RoleDto;
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import br.pucrs.constrsw.oauth.dto.ApiErrorResponse;
+import br.pucrs.constrsw.oauth.dto.RoleDto;
 import br.pucrs.constrsw.oauth.error.UnauthorizedException;
 import br.pucrs.constrsw.oauth.service.RoleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,13 +26,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
-@Tag(name = "Roles", description = "Gerenciamento de Roles (Cargos/Papéis) integrados ao Keycloak")
+@Tag(name = "Roles", description = "Manage roles integrated with Keycloak")
 @SecurityRequirement(name = "bearerAuth") // ajustar
 @RestController
 @RequestMapping("/roles")
@@ -36,12 +46,12 @@ public class RoleController {
         return authorization;
     }
 
-    @Operation(summary = "Criação de um role", description = "Cria um novo role no Keycloak")
+    @Operation(summary = "Create a role", description = "Creates a role in Keycloak")
     @ApiResponse(responseCode = "201", description = "Created")
-    @ApiResponse(responseCode = "400", description = "Bad Request - Erro na estrutura da chamada", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    @ApiResponse(responseCode = "401", description = "Unauthorized - Access token inválido", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    @ApiResponse(responseCode = "403", description = "Forbidden - Access token não concede permissão", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    @ApiResponse(responseCode = "409", description = "Conflict - Role já existente", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Role already exists", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @PostMapping
     public ResponseEntity<RoleDto> createRole(
             @Parameter(hidden = true) @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -51,9 +61,9 @@ public class RoleController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @Operation(summary = "Recuperação de todos os roles", description = "Recupera os dados de todos os roles cadastrados")
-    @ApiResponse(responseCode = "200", description = "OK")
-    @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @Operation(summary = "List roles", description = "Lists roles from Keycloak")
+    @ApiResponse(responseCode = "200", description = "Roles returned")
+    @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @GetMapping
@@ -64,12 +74,12 @@ public class RoleController {
         return ResponseEntity.ok(roles);
     }
 
-    @Operation(summary = "Recuperação de um role pelo id", description = "Recupera os dados de um role específico")
-    @ApiResponse(responseCode = "200", description = "OK")
-    @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @Operation(summary = "Get a role", description = "Gets a role by Keycloak id")
+    @ApiResponse(responseCode = "200", description = "Role returned")
+    @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    @ApiResponse(responseCode = "404", description = "Not found - Objeto não localizado", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Role not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @GetMapping("/{id}")
     public ResponseEntity<RoleDto> getById(
             @Parameter(hidden = true) @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -79,12 +89,12 @@ public class RoleController {
         return ResponseEntity.ok(role);
     }
 
-    @Operation(summary = "Atualização de um role", description = "Substitui os dados de um role existente")
-    @ApiResponse(responseCode = "200", description = "OK")
-    @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @Operation(summary = "Update a role", description = "Updates an existing role")
+    @ApiResponse(responseCode = "200", description = "Role updated")
+    @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    @ApiResponse(responseCode = "404", description = "Not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Role not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @PutMapping("/{id}")
     public ResponseEntity<RoleDto> update(
             @Parameter(hidden = true) @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -95,12 +105,12 @@ public class RoleController {
         return ResponseEntity.ok(updated);
     }
 
-    @Operation(summary = "Atualização parcial de um role", description = "Atualiza atributos específicos de um role")
-    @ApiResponse(responseCode = "200", description = "OK")
-    @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @Operation(summary = "Partially update a role", description = "Updates specific role attributes")
+    @ApiResponse(responseCode = "200", description = "Role updated")
+    @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    @ApiResponse(responseCode = "404", description = "Not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Role not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @PatchMapping("/{id}")
     public ResponseEntity<RoleDto> patch(
             @Parameter(hidden = true) @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -111,12 +121,12 @@ public class RoleController {
         return ResponseEntity.ok(updated);
     }
 
-    @Operation(summary = "Exclusão lógica de um role", description = "Desabilita um role no Keycloak")
-    @ApiResponse(responseCode = "204", description = "No content")
-    @ApiResponse(responseCode = "400", description = "Bad Request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @Operation(summary = "Disable a role", description = "Logically deletes a role by disabling it in Keycloak")
+    @ApiResponse(responseCode = "204", description = "Role disabled")
+    @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    @ApiResponse(responseCode = "404", description = "Not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Role not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
             @Parameter(hidden = true) @RequestHeader(value = "Authorization", required = false) String authorization,
