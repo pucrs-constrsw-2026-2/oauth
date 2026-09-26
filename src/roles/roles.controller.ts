@@ -50,7 +50,9 @@ export class RolesController {
   @Get()
   @ApiOperation({ summary: "Lista todos os roles" })
   @ApiOkResponse({ description: "Roles cadastrados" })
-  findAll(@Headers("authorization") authorization?: string): Promise<RoleResponse[]> {
+  findAll(
+    @Headers("authorization") authorization: string | undefined,
+  ): Promise<RoleResponse[]> {
     this.bearerToken(authorization);
     return this.roles.findAll();
   }
